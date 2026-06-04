@@ -1,60 +1,7 @@
-import os
-import json
-from pathlib import Path
 import folder_paths
 from comfy_api.latest import io
 
-
-def get_config_file_path():
-    """获取触发词配置文件路径
-
-    Returns:
-        Path: 配置文件绝对路径
-    """
-    current_dir = Path(__file__).parent
-    return current_dir / "lora_trigger_words.json"
-
-
-def load_trigger_words_config():
-    """加载触发词配置文件
-
-    Returns:
-        dict: 触发词配置字典 {lora_filename: trigger_word}
-    """
-    config_path = get_config_file_path()
-    if config_path.exists():
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return {}
-    return {}
-
-
-def save_trigger_words_config(config):
-    """保存触发词配置到文件
-
-    Args:
-        config: 触发词配置字典 {lora_filename: trigger_word}
-    """
-    config_path = get_config_file_path()
-    try:
-        with open(config_path, 'w', encoding='utf-8') as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
-    except IOError as e:
-        print(f"[LoRALoaderModelOnly] 保存配置文件失败: {e}")
-
-
-def get_lora_list():
-    """获取可用的 LoRA 模型列表
-
-    Returns:
-        list: LoRA 文件名列表
-    """
-    try:
-        return folder_paths.get_filename_list("loras")
-    except Exception:
-        return []
+from . import trigger_word_manager
 
 
 class LoRALoaderModelOnly(io.ComfyNode):
@@ -67,7 +14,7 @@ class LoRALoaderModelOnly(io.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        lora_list = get_lora_list()
+        lora_list = trigger_word_manager.get_lora_list()
 
         return io.Schema(
             node_id="LoRALoaderModelOnly",
@@ -135,9 +82,7 @@ class LoRALoaderModelOnly(io.ComfyNode):
 
             # 如果提供了触发词,保存到配置文件
             if trigger_word.strip():
-                config = load_trigger_words_config()
-                config[lora_name] = trigger_word.strip()
-                save_trigger_words_config(config)
+                trigger_word_manager.save_trigger_word(lora_name, trigger_word.strip())
 
             # 合并触发词(上游 + 当前),空值不参与拼接
             parts = []
