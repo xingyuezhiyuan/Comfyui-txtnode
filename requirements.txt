@@ -1,0 +1,8 @@
+# ComfyUI Text Node 插件依赖
+# 这些包通常已随 ComfyUI 安装，此处仅列出确保环境完整性
+# 不设版本上限，避免与 ComfyUI 环境冲突
+
+Pillow
+numpy
+aiohttp
+typing_extensions
