@@ -152,19 +152,25 @@
 ```
 Comfyui-txtnode/
 ├── __init__.py                    # 插件入口，V3 扩展注册（ComfyExtension + comfy_entrypoint）
-├── nodes.py                       # 文本/图片工具节点实现（V3 API）
+├── nodes/                         # 文件操作节点包
+│   ├── __init__.py                # 节点重新导出
+│   ├── utils.py                   # 共享路径工具函数
+│   ├── save_string.py             # 保存字符串到文本节点
+│   ├── save_image.py              # 保存图像到文件夹节点
+│   └── load_text.py               # 批量加载文本文件节点
 ├── lora_loader_node.py            # LoRA 加载器节点实现（V3 API）
+├── trigger_word_manager.py        # 触发词配置管理模块（集中读写逻辑）
 ├── server.py                      # API 路由（触发词保存/加载/查询接口）
 ├── lora_trigger_words.json        # 触发词配置文件（自动生成）
 ├── requirements.txt               # 项目依赖
 ├── web/
 │   ├── icon.png                   # 触发词选择器图标
 │   ├── lora_loader.js             # LoRA 节点前端扩展（触发词管理）
-│   └── trigger_word_picker.js     # 触发词选择器（CLIP Text Encode 扩展）
+│   ├── trigger_word_picker.js     # 触发词选择器（CLIP Text Encode 扩展）
+│   └── utils/
+│       ── trigger-word-api.js    # 触发词 API 封装模块
 ├── CLAUDE.md                      # 项目开发规范
-├── README.md                      # 本文档
-├── TECHNICAL_DOC.md               # 技术文档
-└── TECHNICAL_ARCHITECTURE.md      # 架构文档
+└── README.md                      # 本文档
 ```
 
 ---
