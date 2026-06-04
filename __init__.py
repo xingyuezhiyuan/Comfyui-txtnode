@@ -1,15 +1,28 @@
-NODE_CLASS_MAPPINGS = {}
-NODE_DISPLAY_NAME_MAPPINGS = {}
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
+
+WEB_DIRECTORY = "./web"
 
 from .nodes import SaveStringToTextNode, SaveImageToFolderNode, LoadTextFilesNode
+from .lora_loader_node import LoRALoaderModelOnly
 
-NODE_CLASS_MAPPINGS["SaveStringToTextNode"] = SaveStringToTextNode
-NODE_DISPLAY_NAME_MAPPINGS["SaveStringToTextNode"] = "Save String to Text File"
+# 导入 server 模块注册 API 路由(装饰器在模块加载时自动注册)
+from . import server
 
-NODE_CLASS_MAPPINGS["SaveImageToFolderNode"] = SaveImageToFolderNode
-NODE_DISPLAY_NAME_MAPPINGS["SaveImageToFolderNode"] = "Save Image to Folder"
 
-NODE_CLASS_MAPPINGS["LoadTextFilesNode"] = LoadTextFilesNode
-NODE_DISPLAY_NAME_MAPPINGS["LoadTextFilesNode"] = "Load Text Files from Folder"
+class TxtNodeExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            SaveStringToTextNode,
+            SaveImageToFolderNode,
+            LoadTextFilesNode,
+            LoRALoaderModelOnly,
+        ]
 
-__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
+
+async def comfy_entrypoint() -> TxtNodeExtension:
+    return TxtNodeExtension()
+
+
+__all__ = ["comfy_entrypoint"]

@@ -1,0 +1,60 @@
+{
+    "SaveStringToTextNode": {
+        "title": "保存字符串到文本文件",
+        "inputs": {
+            "text": "文本"
+        },
+        "widgets": {
+            "file_name": "文件名",
+            "extension": "扩展名",
+            "encoding": "编码",
+            "save_mode": "保存模式",
+            "directory_path": "目录路径"
+        },
+        "outputs": {
+            "file_path": "文件路径"
+        }
+    },
+    "SaveImageToFolderNode": {
+        "title": "保存图像到文件夹",
+        "inputs": {
+            "images": "图像"
+        },
+        "widgets": {
+            "file_name": "文件名",
+            "image_format": "图像格式",
+            "output_folder": "输出文件夹"
+        },
+        "outputs": {
+            "folder_path": "文件夹路径"
+        }
+    },
+    "LoadTextFilesNode": {
+        "title": "从文件夹加载文本文件",
+        "widgets": {
+            "folder_path": "文件夹路径",
+            "max_files": "最大文件数",
+            "index": "索引"
+        },
+        "outputs": {
+            "text": "文本",
+            "file_name": "文件名"
+        }
+    },
+    "LoRALoaderModelOnly": {
+        "title": "LoRA加载器（仅模型）",
+        "inputs": {
+            "model": "模型",
+            "upstream_trigger_word": "上游触发词"
+        },
+        "widgets": {
+            "lora_name": "LoRA名称",
+            "strength_model": "模型强度",
+            "trigger_word": "触发词"
+        },
+        "outputs": {
+            "MODEL": "模型",
+            "trigger_word": "触发词"
+        }
+    }
+}

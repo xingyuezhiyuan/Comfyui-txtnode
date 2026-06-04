@@ -1,0 +1,9 @@
+# Claude skills directory (local development tools)
+.claude/skills/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# LoRA trigger words config (user-specific, varies per machine)
+lora_trigger_words.json
