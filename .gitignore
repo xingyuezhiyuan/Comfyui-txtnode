@@ -7,3 +7,6 @@ __pycache__/
 
 # LoRA trigger words config (user-specific, varies per machine)
 lora_trigger_words.json
+
+# Local docs (plans, notes, etc.)
+docs/

@@ -1,32 +1,41 @@
 import { app } from "../../../scripts/app.js";
+import { saveTriggerWord, getAllTriggerWords } from "./utils/trigger-word-api.js";
 
 /**
  * 触发词选择器 — 为 CLIPTextEncode 节点添加触发词快捷按钮
  *
- * 参考 Prompt Assistant 的挂载策略：
- * - LiteGraph 模式：挂载到 widget.element.parentElement
- * - Vue 模式：挂载到 [data-node-id] 内 textarea 的父容器
+ * 支持功能：
+ * - 识别三种 LoRA 节点：LoRALoaderModelOnly（自定义）、LoraLoader（官方）、LoraLoaderModelOnly（官方仅模型）
+ * - 自动比对工作流中的 LoRA 与配置文件
+ * - 已保存的触发词：点击直接应用
+ * - 未保存的触发词：提供输入框和保存按钮
  */
+
+// LoRA 节点类型列表（自定义 + 官方）
+const LORA_NODE_TYPES = ["LoRALoaderModelOnly", "LoraLoader", "LoraLoaderModelOnly"];
 
 let triggerWordsCache = [];
 let lastFetchTime = 0;
 const CACHE_TTL = 5000;
-
+let currentButtonNode = null; // 当前点击按钮所属的节点
 async function fetchAllTriggerWords() {
     const now = Date.now();
     if (now - lastFetchTime < CACHE_TTL && triggerWordsCache.length > 0) return triggerWordsCache;
-    try {
-        const resp = await fetch("/comfyui-txtnode/get_all_trigger_words");
-        if (resp.ok) { const d = await resp.json(); triggerWordsCache = d.trigger_words || []; lastFetchTime = now; }
-    } catch (err) { console.error("[Comfyui-txtnode] 获取触发词失败:", err); }
+    const words = await getAllTriggerWords();
+    triggerWordsCache = words;
+    lastFetchTime = now;
     return triggerWordsCache;
 }
 
+/**
+ * 获取工作流中所有 LoRA 节点加载的 LoRA 文件名
+ * 支持三种节点类型：LoRALoaderModelOnly（自定义）、LoraLoader（官方）、LoraLoaderModelOnly（官方仅模型）
+ */
 function getLoadedLoraNames() {
     const names = new Set();
     if (!app.graph) return names;
     for (const n of app.graph._nodes) {
-        if (n.type === "LoRALoaderModelOnly") {
+        if (LORA_NODE_TYPES.includes(n.type)) {
             const w = n.widgets?.find(w => w.name === "lora_name");
             if (w?.value) names.add(w.value);
         }
@@ -34,78 +43,227 @@ function getLoadedLoraNames() {
     return names;
 }
 
-function showPopup() {
+/**
+ * 保存触发词（弹窗内调用）
+ */
+async function saveTriggerWordInPopup(loraName, triggerWord) {
+    const result = await saveTriggerWord(loraName, triggerWord);
+
+    if (result.success) {
+        // 清除缓存，下次打开时重新获取
+        triggerWordsCache = [];
+        lastFetchTime = 0;
+    }
+
+    return result;
+}
+
+/**
+ * 显示触发词选择弹窗
+ */
+async function showPopup() {
     document.querySelector(".txtnode-tw-overlay")?.remove();
 
+    // 获取最新触发词列表
+    const allWords = await fetchAllTriggerWords();
     const loadedNames = getLoadedLoraNames();
-    const allWords = triggerWordsCache;
-    let matched = allWords.filter(i => loadedNames.has(i.lora_name));
-    if (!matched.length) matched = allWords;
+
+    // 分类：已保存 vs 未保存（只显示当前工作流加载的 LoRA）
+    const savedMap = new Map(allWords.map(i => [i.lora_name, i]));
+    const savedItems = [];
+    const unsavedNames = [];
+
+    for (const loraName of loadedNames) {
+        if (savedMap.has(loraName)) {
+            savedItems.push(savedMap.get(loraName));
+        } else {
+            unsavedNames.push(loraName);
+        }
+    }
+
+    // 只显示工作流中加载的 LoRA 对应的触发词
+    const displayItems = savedItems;
 
     const ov = document.createElement("div");
     ov.className = "txtnode-tw-overlay";
     ov.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;";
 
     const pop = document.createElement("div");
-    pop.style.cssText = "background:#2a2a2e;border:1px solid #555;border-radius:8px;min-width:360px;max-width:480px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.5);";
+    pop.style.cssText = "background:#2a2a2e;border:1px solid #555;border-radius:8px;min-width:400px;max-width:520px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.5);";
 
+    // 头部
     const hdr = document.createElement("div");
     hdr.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #444;font-size:14px;font-weight:600;color:#e0e0e0;";
     hdr.innerHTML = '<span>选择触发词</span><button style="background:none;border:none;color:#999;cursor:pointer;font-size:16px;padding:0 4px;">✕</button>';
     hdr.querySelector("button").onclick = () => ov.remove();
     pop.appendChild(hdr);
 
+    // 内容区
     const list = document.createElement("div");
     list.style.cssText = "overflow-y:auto;padding:8px;flex:1;";
-    if (!matched.length) {
-        list.innerHTML = '<div style="padding:24px;text-align:center;color:#888;font-size:13px;">' +
-            (loadedNames.size ? "已加载的 LoRA 暂无保存的触发词" : "工作流中未检测到 LoRA 节点") + '</div>';
-    } else {
-        for (const item of matched) {
+
+    // 渲染已保存的触发词
+    if (displayItems.length > 0) {
+        const label = document.createElement("div");
+        label.style.cssText = "padding:4px 10px 6px;font-size:12px;color:#999;font-weight:500;";
+        label.textContent = `已保存的触发词 (${displayItems.length})`;
+        list.appendChild(label);
+
+        for (const item of displayItems) {
             const r = document.createElement("div");
             r.style.cssText = "display:flex;align-items:center;padding:8px 10px;margin:2px 0;border-radius:6px;cursor:pointer;justify-content:space-between;";
             r.onmouseenter = () => r.style.background = "#3a3a3e";
             r.onmouseleave = () => r.style.background = "transparent";
-            const short = item.lora_name.includes("\\") ? item.lora_name.split("\\").pop() : item.lora_name.includes("/") ? item.lora_name.split("/").pop() : item.lora_name;
+            const short = getShortName(item.lora_name);
             r.innerHTML = `<span style="font-size:13px;color:#fff;font-weight:500;flex:1;word-break:break-word;">${esc(item.trigger_word)}</span><span style="font-size:11px;color:#888;margin-left:8px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;">${esc(short)}</span>`;
             r.onclick = () => {
-                const tw = app.graph._nodes.find(n => n.type === "CLIPTextEncode")?.widgets?.find(w => w.name === "text");
-                if (tw) {
-                    tw.value = ((tw.value || "").trim() ? tw.value + ", " : "") + item.trigger_word;
-                    tw.callback?.(tw.value);
-                }
+                applyTriggerWord(item.trigger_word);
                 ov.remove();
-                app.extensionManager.toast.add({ severity: "success", summary: "已应用触发词", detail: item.trigger_word, life: 1500 });
             };
             list.appendChild(r);
         }
     }
+
+    // 渲染未保存的 LoRA
+    if (unsavedNames.length > 0) {
+        const label = document.createElement("div");
+        label.style.cssText = "padding:10px 10px 6px;font-size:12px;color:#999;font-weight:500;";
+        label.textContent = `未保存的 LoRA (${unsavedNames.length})`;
+        list.appendChild(label);
+
+        for (const loraName of unsavedNames) {
+            const row = document.createElement("div");
+            row.style.cssText = "display:flex;flex-direction:column;padding:8px 10px;margin:2px 0;border-radius:6px;background:#252529;gap:6px;";
+
+            const short = getShortName(loraName);
+            const nameSpan = document.createElement("span");
+            nameSpan.style.cssText = "font-size:11px;color:#777;word-break:break-all;";
+            nameSpan.textContent = short;
+            row.appendChild(nameSpan);
+
+            const inputRow = document.createElement("div");
+            inputRow.style.cssText = "display:flex;gap:6px;";
+
+            const input = document.createElement("input");
+            input.type = "text";
+            input.placeholder = "输入触发词...";
+            input.style.cssText = "flex:1;background:#1a1a1e;border:1px solid #444;border-radius:4px;padding:5px 8px;color:#e0e0e0;font-size:12px;outline:none;";
+            input.onfocus = () => input.style.borderColor = "#4a6ab0";
+            input.onblur = () => input.style.borderColor = "#444";
+
+            const saveBtn = document.createElement("button");
+            saveBtn.textContent = "保存";
+            saveBtn.style.cssText = "background:#4a6ab0;border:none;border-radius:4px;padding:5px 12px;color:#fff;font-size:12px;cursor:pointer;white-space:nowrap;";
+            saveBtn.onmouseenter = () => saveBtn.style.background = "#5a7ac0";
+            saveBtn.onmouseleave = () => saveBtn.style.background = "#4a6ab0";
+
+            saveBtn.onclick = async () => {
+                const triggerWord = input.value.trim();
+                if (!triggerWord) {
+                    app.extensionManager.toast.add({
+                        severity: "warn", summary: "保存触发词", detail: "请输入触发词", life: 2000
+                    });
+                    return;
+                }
+
+                saveBtn.textContent = "保存中...";
+                saveBtn.disabled = true;
+                saveBtn.style.opacity = "0.6";
+
+                const result = await saveTriggerWordInPopup(loraName, triggerWord);
+                if (result.success) {
+                    app.extensionManager.toast.add({
+                        severity: "success", summary: "保存触发词", detail: result.message, life: 2000
+                    });
+                    // 刷新弹窗
+                    ov.remove();
+                    showPopup();
+                } else {
+                    app.extensionManager.toast.add({
+                        severity: "error", summary: "保存失败", detail: result.message, life: 3000
+                    });
+                    saveBtn.textContent = "保存";
+                    saveBtn.disabled = false;
+                    saveBtn.style.opacity = "1";
+                }
+            };
+
+            // 回车键保存
+            input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") saveBtn.click();
+            });
+
+            inputRow.appendChild(input);
+            inputRow.appendChild(saveBtn);
+            row.appendChild(inputRow);
+            list.appendChild(row);
+        }
+    }
+
+    // 空状态
+    if (displayItems.length === 0 && unsavedNames.length === 0) {
+        list.innerHTML = '<div style="padding:24px;text-align:center;color:#888;font-size:13px;">' +
+            (loadedNames.size ? "工作流中的 LoRA 暂无保存的触发词" : "工作流中未检测到 LoRA 节点") + '</div>';
+    }
+
     pop.appendChild(list);
+
+    // 底部统计
     const ft = document.createElement("div");
     ft.style.cssText = "padding:8px 14px;border-top:1px solid #444;font-size:11px;color:#777;text-align:center;";
-    ft.textContent = loadedNames.size ? `工作流中 ${loadedNames.size} 个 LoRA · ${matched.length}/${allWords.length} 个触发词` : `共 ${allWords.length} 个已保存触发词`;
+    const totalLora = loadedNames.size || allWords.length;
+    const savedCount = savedItems.length;
+    ft.textContent = loadedNames.size > 0
+        ? `工作流中 ${loadedNames.size} 个 LoRA · ${savedCount}/${loadedNames.size} 个已保存触发词`
+        : `共 ${allWords.length} 个已保存触发词`;
     pop.appendChild(ft);
+
     ov.appendChild(pop);
     ov.onclick = e => { if (e.target === ov) ov.remove(); };
     document.body.appendChild(ov);
 }
+
+/**
+ * 获取 LoRA 文件名的简短形式
+ */
+function getShortName(name) {
+    return name.includes("\\") ? name.split("\\").pop() : name.includes("/") ? name.split("/").pop() : name;
+}
+
+/**
+ * 应用触发词到对应的 CLIP Text Encode 节点
+ */
+function applyTriggerWord(triggerWord) {
+    if (!currentButtonNode) {
+        console.warn("[Comfyui-txtnode] 未找到当前节点");
+        return;
+    }
+
+    const tw = currentButtonNode.widgets?.find(w => w.name === "text");
+    if (tw) {
+        tw.value = ((tw.value || "").trim() ? tw.value + ", " : "") + triggerWord;
+        // 触发 widget 的回调以更新 UI
+        tw.callback?.(tw.value);
+        console.log("[Comfyui-txtnode] 已应用触发词到节点", currentButtonNode.id);
+    } else {
+        console.warn("[Comfyui-txtnode] 未找到文本输入框");
+    }
+}
+
 function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
 /** 找到 textarea 的挂载容器 */
 function getMountContainer(node) {
-    // 方案 A: LiteGraph 模式 — widget.element.parentElement
     const tw = node.widgets?.find(w => w.name === "text");
     if (!tw) return null;
 
     const el = tw.element || tw.inputEl;
     if (el && el.tagName === "TEXTAREA") {
-        // 检查是否在 DOM 中（可能被 Vue 接管后 detach）
         if (document.body.contains(el)) {
             return { textarea: el, parent: el.parentElement };
         }
     }
 
-    // 方案 B: Vue 模式 — [data-node-id] 内查找 textarea
     const nc = document.querySelector(`[data-node-id="${node.id}"]`);
     if (nc) {
         const ta = nc.querySelector("textarea.p-textarea") || nc.querySelector("textarea");
@@ -127,19 +285,16 @@ function injectButton(node) {
         if (mc && mc.parent && !mc.parent.querySelector(".tw-btn")) {
             clearInterval(poll);
 
-            // 确保父容器 relative 定位
             if (getComputedStyle(mc.parent).position === "static") {
                 mc.parent.style.position = "relative";
             }
 
-            // 确保 overflow 不裁剪
             ["overflow", "overflowX", "overflowY"].forEach(p => {
                 if (getComputedStyle(mc.parent)[p] === "hidden") {
                     mc.parent.style[p] = "visible";
                 }
             });
 
-            // 用 div 而非 button，避免 PrimeVue 拦截
             const btn = document.createElement("div");
             btn.className = "tw-btn";
             btn.title = "选择触发词";
@@ -150,14 +305,16 @@ function injectButton(node) {
             btn.onmouseenter = () => { btn.style.background = "rgba(74,106,176,0.6)"; btn.style.borderColor = "rgba(102,170,255,0.6)"; };
             btn.onmouseleave = () => { btn.style.background = "rgba(58,58,62,0.45)"; btn.style.borderColor = "rgba(102,102,102,0.45)"; };
             btn.onmousedown = (e) => e.stopPropagation();
-            btn.onclick = (e) => { e.stopPropagation(); showPopup(); };
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                currentButtonNode = node; // 记录当前节点
+                showPopup();
+            };
 
-            // 从同目录加载图标（ComfyUI 自动 serve web 目录文件）
             const img = document.createElement("img");
             img.src = new URL("icon.png", import.meta.url).href;
             img.style.cssText = "width:16px;height:16px;pointer-events:none;";
             img.onerror = () => {
-                // 加载失败时显示文字
                 btn.textContent = "TW";
                 Object.assign(btn.style, { fontSize:"10px", fontWeight:"700", color:"#ddd", fontFamily:"Arial,sans-serif", lineHeight:"1", padding:"2px 4px" });
             };
@@ -166,7 +323,6 @@ function injectButton(node) {
             mc.parent.appendChild(btn);
             console.log("[Comfyui-txtnode] TW 按钮已挂载", node.id);
 
-            // MutationObserver: 当 PrimeVue 重新渲染移除按钮时自动恢复
             const observer = new MutationObserver(() => {
                 if (!document.body.contains(btn)) {
                     if (!mc.parent.querySelector(".tw-btn")) {
@@ -189,19 +345,16 @@ app.registerExtension({
         await fetchAllTriggerWords();
         app.api.addEventListener("execution_success", () => { triggerWordsCache = []; lastFetchTime = 0; });
 
-        // 等待 graph 就绪后 hook onNodeAdded 并扫描已存节点
         const wait = setInterval(() => {
             if (!app.graph) return;
             clearInterval(wait);
 
-            // 扫描已有节点
             [500, 2000, 5000].forEach(d => setTimeout(() => {
                 for (const n of app.graph._nodes) {
                     if (n.type === "CLIPTextEncode") injectButton(n);
                 }
             }, d));
 
-            // 拦截新节点
             if (!app.graph._twHooked) {
                 app.graph._twHooked = true;
                 const orig = app.graph.onNodeAdded;
