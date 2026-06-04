@@ -70,6 +70,24 @@ def setup_routes():
                     status=500
                 )
         
+        @prompt_server.routes.get("/comfyui-txtnode/get_all_trigger_words")
+        async def get_all_trigger_words(request):
+            """获取所有已保存的触发词"""
+            try:
+                config = load_trigger_words_config()
+                # 转换成列表格式，按 LoRA 名称排序
+                items = [
+                    {"lora_name": k, "trigger_word": v}
+                    for k, v in sorted(config.items(), key=lambda x: x[0].lower())
+                ]
+                return web.json_response({"trigger_words": items})
+                
+            except Exception as e:
+                return web.json_response(
+                    {"error": str(e)},
+                    status=500
+                )
+        
         print("[Comfyui-txtnode] API 路由注册成功")
         
     except AttributeError as e:
