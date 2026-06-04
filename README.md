@@ -1,6 +1,6 @@
 # ComfyUI Text Node 插件
 
-基于 **ComfyUI V3 API** 构建的自定义节点插件，提供文本文件操作、图片保存和批量文件加载等实用功能。
+基于 **ComfyUI V3 API** 构建的自定义节点插件，提供文本文件操作、图片保存、批量文件加载以及 LoRA 触发词管理等实用功能。
 
 ## 节点列表
 
@@ -104,6 +104,7 @@
 - **自动加载**：切换 LoRA 选择时，自动回填已保存的触发词
 - **多级链接**：通过 `upstream_trigger_word` 端口链接多个 LoRA 节点，触发词自动合并
 - **前端支持**：节点面板提供"保存触发词"按钮和右键"刷新触发词"菜单
+- **触发词选择器**：CLIP Text Encode 节点提供触发词快捷选择按钮，可直接从已保存的触发词列表中选取
 
 ---
 
@@ -138,22 +139,32 @@
 2. 第一个节点的 `trigger_word` 输出连接到第二个节点的 `upstream_trigger_word` 输入
 3. 两个节点的触发词自动合并为 `"触发词A, 触发词B"` 格式输出
 
+### 使用触发词选择器
+1. 添加 **LoRA加载器(仅模型)** 节点并配置触发词
+2. 执行工作流后触发词自动保存
+3. 在 **CLIP Text Encode** 节点的文本输入框左下角点击图标按钮
+4. 从弹出列表中选择已保存的触发词，自动追加到提示词中
+
 ---
 
 ## 文件结构
 
 ```
 Comfyui-txtnode/
-├── __init__.py               # 插件入口，V3 扩展注册（ComfyExtension + comfy_entrypoint）
-├── nodes.py                  # 文本/图片工具节点实现（V3 API）
-├── lora_loader_node.py       # LoRA 加载器节点实现（V3 API）
-├── server.py                 # API 路由（触发词保存/加载接口）
-├── lora_trigger_words.json   # 触发词配置文件（自动生成）
+├── __init__.py                    # 插件入口，V3 扩展注册（ComfyExtension + comfy_entrypoint）
+├── nodes.py                       # 文本/图片工具节点实现（V3 API）
+├── lora_loader_node.py            # LoRA 加载器节点实现（V3 API）
+├── server.py                      # API 路由（触发词保存/加载/查询接口）
+├── lora_trigger_words.json        # 触发词配置文件（自动生成）
+├── requirements.txt               # 项目依赖
 ├── web/
-│   └── lora_loader.js        # 前端扩展（触发词自动加载/保存按钮）
-├── CLAUDE.md                 # 项目开发规范
-├── README.md                 # 本文档
-└── TECHNICAL_DOC.md          # 技术文档
+│   ├── icon.png                   # 触发词选择器图标
+│   ├── lora_loader.js             # LoRA 节点前端扩展（触发词管理）
+│   └── trigger_word_picker.js     # 触发词选择器（CLIP Text Encode 扩展）
+├── CLAUDE.md                      # 项目开发规范
+├── README.md                      # 本文档
+├── TECHNICAL_DOC.md               # 技术文档
+└── TECHNICAL_ARCHITECTURE.md      # 架构文档
 ```
 
 ---
@@ -162,8 +173,13 @@ Comfyui-txtnode/
 
 - **V3 API**：所有节点继承 `io.ComfyNode`，使用 `define_schema()` + `execute()` 模式
 - **扩展注册**：通过 `ComfyExtension` + `comfy_entrypoint()` 注册（ComfyUI 新版入口）
-- **前端扩展**：`WEB_DIRECTORY = "./web"` 加载 `lora_loader.js`，提供交互式触发词管理
-- **API 服务**：`server.py` 注册 HTTP 路由，实现触发词的保存和查询接口
+- **前端扩展**：`WEB_DIRECTORY = "./web"` 加载前端 JS 文件
+  - `lora_loader.js`：LoRA 节点触发词管理（保存按钮、自动加载、右键菜单）
+  - `trigger_word_picker.js`：CLIP Text Encode 节点触发词选择器（支持 LiteGraph 和 Vue 模式）
+- **API 服务**：`server.py` 注册 HTTP 路由
+  - `POST /comfyui-txtnode/save_trigger_word` - 保存触发词
+  - `GET /comfyui-txtnode/get_trigger_word` - 获取单个触发词
+  - `GET /comfyui-txtnode/get_all_trigger_words` - 获取所有触发词
 
 ---
 
@@ -174,3 +190,5 @@ Comfyui-txtnode/
 - Pillow（图片处理）
 - numpy（数组操作）
 - torch（张量处理）
+- aiohttp（HTTP 路由）
+- typing_extensions（类型支持）
