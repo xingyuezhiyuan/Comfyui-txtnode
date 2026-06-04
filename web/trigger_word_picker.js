@@ -1,4 +1,5 @@
 import { app } from "../../../scripts/app.js";
+import { saveTriggerWord, getAllTriggerWords } from "./utils/trigger-word-api.js";
 
 /**
  * 触发词选择器 — 为 CLIPTextEncode 节点添加触发词快捷按钮
@@ -20,10 +21,9 @@ let currentButtonNode = null; // 当前点击按钮所属的节点
 async function fetchAllTriggerWords() {
     const now = Date.now();
     if (now - lastFetchTime < CACHE_TTL && triggerWordsCache.length > 0) return triggerWordsCache;
-    try {
-        const resp = await fetch("/comfyui-txtnode/get_all_trigger_words");
-        if (resp.ok) { const d = await resp.json(); triggerWordsCache = d.trigger_words || []; lastFetchTime = now; }
-    } catch (err) { console.error("[Comfyui-txtnode] 获取触发词失败:", err); }
+    const words = await getAllTriggerWords();
+    triggerWordsCache = words;
+    lastFetchTime = now;
     return triggerWordsCache;
 }
 
@@ -47,25 +47,15 @@ function getLoadedLoraNames() {
  * 保存触发词（弹窗内调用）
  */
 async function saveTriggerWordInPopup(loraName, triggerWord) {
-    try {
-        const response = await fetch("/comfyui-txtnode/save_trigger_word", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lora_name: loraName, trigger_word: triggerWord })
-        });
+    const result = await saveTriggerWord(loraName, triggerWord);
 
-        if (response.ok) {
-            const result = await response.json();
-            // 清除缓存，下次打开时重新获取
-            triggerWordsCache = [];
-            lastFetchTime = 0;
-            return { success: true, message: result.message };
-        } else {
-            return { success: false, message: `保存失败: ${response.statusText}` };
-        }
-    } catch (error) {
-        return { success: false, message: `请求出错: ${error.message}` };
+    if (result.success) {
+        // 清除缓存，下次打开时重新获取
+        triggerWordsCache = [];
+        lastFetchTime = 0;
     }
+
+    return result;
 }
 
 /**

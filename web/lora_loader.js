@@ -1,5 +1,5 @@
 import { app } from "../../../scripts/app.js";
-import { ComfyWidgets } from "../../../scripts/widgets.js";
+import { saveTriggerWord, getTriggerWord } from "./utils/trigger-word-api.js";
 
 app.registerExtension({
     name: "Comfyui-txtnode.LoRALoaderModelOnly",
@@ -57,15 +57,15 @@ app.registerExtension({
             // 获取触发词输入框的值
             const triggerWordWidget = this.widgets.find(w => w.name === "trigger_word");
             const loraNameWidget = this.widgets.find(w => w.name === "lora_name");
-            
+
             if (!triggerWordWidget || !loraNameWidget) {
                 console.error("[LoRALoaderModelOnly] 找不到触发词或 LoRA 名称组件");
                 return;
             }
-            
+
             const triggerWord = triggerWordWidget.value;
             const loraName = loraNameWidget.value;
-            
+
             if (!loraName) {
                 app.extensionManager.toast.add({
                     severity: "warn",
@@ -75,46 +75,23 @@ app.registerExtension({
                 });
                 return;
             }
-            
-            try {
-                // 通过 API 保存触发词
-                const response = await fetch("/comfyui-txtnode/save_trigger_word", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        lora_name: loraName,
-                        trigger_word: triggerWord
-                    })
+
+            const result = await saveTriggerWord(loraName, triggerWord);
+
+            if (result.success) {
+                console.log(`[LoRALoaderModelOnly] 触发词已保存: ${loraName}`);
+                app.extensionManager.toast.add({
+                    severity: "success",
+                    summary: "保存触发词",
+                    detail: result.message || `已保存: ${loraName}`,
+                    life: 2500,
                 });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    console.log(`[LoRALoaderModelOnly] 触发词已保存: ${loraName}`);
-                    app.extensionManager.toast.add({
-                        severity: "success",
-                        summary: "保存触发词",
-                        detail: result.message || `已保存: ${loraName}`,
-                        life: 2500,
-                    });
-                } else {
-                    const errMsg = `保存失败: ${response.statusText}`;
-                    console.error("[LoRALoaderModelOnly]", errMsg);
-                    app.extensionManager.toast.add({
-                        severity: "error",
-                        summary: "保存触发词",
-                        detail: errMsg,
-                        life: 4000,
-                    });
-                }
-            } catch (error) {
-                const errMsg = `请求出错: ${error.message}`;
-                console.error("[LoRALoaderModelOnly]", errMsg);
+            } else {
+                console.error("[LoRALoaderModelOnly]", result.message);
                 app.extensionManager.toast.add({
                     severity: "error",
                     summary: "保存触发词",
-                    detail: errMsg,
+                    detail: result.message,
                     life: 4000,
                 });
             }
@@ -123,21 +100,12 @@ app.registerExtension({
         // 添加加载触发词的方法(当选择不同 LoRA 时调用)
         nodeType.prototype.loadTriggerWord = async function(loraName) {
             if (!loraName) return;
-            
-            try {
-                const response = await fetch(`/comfyui-txtnode/get_trigger_word?lora_name=${encodeURIComponent(loraName)}`);
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    const triggerWordWidget = this.widgets.find(w => w.name === "trigger_word");
-                    
-                    // 无论是否有触发词,都更新输入框(没有则清空)
-                    if (triggerWordWidget) {
-                        triggerWordWidget.value = result.trigger_word || "";
-                    }
-                }
-            } catch (error) {
-                console.error("[LoRALoaderModelOnly] 加载触发词时出错:", error);
+
+            const result = await getTriggerWord(loraName);
+            const triggerWordWidget = this.widgets.find(w => w.name === "trigger_word");
+
+            if (triggerWordWidget) {
+                triggerWordWidget.value = result.trigger_word || "";
             }
         };
         
