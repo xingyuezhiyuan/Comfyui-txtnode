@@ -6,7 +6,7 @@
 
 ## 技能文件使用
 
-开发 ComfyUI 插件过程中,可按需求自由使用以下技能:
+开发 ComfyUI 插件过程中,可按需求自由使用以下 skills 技能:
 
 - `comfyui-node-advanced` - 动态输入、类型匹配、节点扩展
 - `comfyui-node-basics` - V3 节点结构、项目设置
