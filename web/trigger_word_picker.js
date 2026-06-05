@@ -218,6 +218,11 @@ async function showPopup() {
         label.textContent = `已保存的触发词 (${displayItems.length})`;
         list.appendChild(label);
 
+        const tip = document.createElement("div");
+        tip.style.cssText = "padding:0 10px 8px;font-size:11px;color:#666;font-style:italic;";
+        tip.textContent = "鼠标移到提示词上点击应用";
+        list.appendChild(tip);
+
         for (const item of displayItems) {
             const r = document.createElement("div");
             r.style.cssText = "display:flex;align-items:center;padding:8px 10px;margin:2px 0;border-radius:6px;justify-content:space-between;gap:8px;";
