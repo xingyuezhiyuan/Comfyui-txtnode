@@ -1,0 +1,635 @@
+{
+  "id": "51e62f9d-3993-4759-8295-4aea74f5f467",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 7,
+  "nodes": [
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -858.9088624901225,
+        -288.6713245732531
+      ],
+      "size": [
+        297.6705078125,
+        98
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": null
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.22.3",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "SD15\\AWPainting_v1.5.safetensors"
+      ]
+    },
+    {
+      "id": 1,
+      "type": "LoRALoaderModelOnly",
+      "pos": [
+        -532.5608782257364,
+        -299.5419476197767
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "模型",
+          "name": "model",
+          "type": "MODEL",
+          "link": 5
+        },
+        {
+          "label": "上游触发词",
+          "name": "upstream_trigger_word",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        },
+        {
+          "label": "触发词",
+          "name": "trigger_word",
+          "type": "STRING",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "xingyuezhiyuan/Comfyui-txtnode",
+        "ver": "baa790f085ae68ffa1580e0c2684aff6b431fa44",
+        "Node name for S&R": "LoRALoaderModelOnly",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "2D.safetensors",
+        1,
+        "",
+        null
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoRALoaderModelOnly",
+      "pos": [
+        -94.72927839352793,
+        -304.0274828878903
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "模型",
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "label": "上游触发词",
+          "name": "upstream_trigger_word",
+          "shape": 7,
+          "type": "STRING",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        },
+        {
+          "label": "触发词",
+          "name": "trigger_word",
+          "type": "STRING",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "xingyuezhiyuan/Comfyui-txtnode",
+        "ver": "baa790f085ae68ffa1580e0c2684aff6b431fa44",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        },
+        "Node name for S&R": "LoRALoaderModelOnly"
+      },
+      "widgets_values": [
+        "2D.safetensors",
+        1,
+        "",
+        null
+      ]
+    },
+    {
+      "id": 9,
+      "type": "SaveImageToFolderNode",
+      "pos": [
+        -443.43804666664755,
+        431.0655085690648
+      ],
+      "size": [
+        301.13687327758385,
+        149.18980575718183
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "label": "图像格式",
+          "name": "image_format",
+          "type": "COMBO",
+          "widget": {
+            "name": "image_format"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "文件夹路径",
+          "name": "folder_path",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "xingyuezhiyuan/Comfyui-txtnode",
+        "ver": "1ccd026828c97a736d0672f0e1cdb4d246d5566e",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "SaveImageToFolderNode"
+      },
+      "widgets_values": [
+        "",
+        "png",
+        "J:\\ComfyUI-aki-v2\\ComfyUI\\custom_nodes\\output"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "LoadTextFilesNode",
+      "pos": [
+        -23.59274685626347,
+        453.1627261664909
+      ],
+      "size": [
+        270,
+        126
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "label": "文件名",
+          "name": "file_name",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "xingyuezhiyuan/Comfyui-txtnode",
+        "ver": "1ccd026828c97a736d0672f0e1cdb4d246d5566e",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "LoadTextFilesNode"
+      },
+      "widgets_values": [
+        "J:\\ComfyUI-aki-v2\\ComfyUI\\custom_nodes\\output",
+        10,
+        0
+      ]
+    },
+    {
+      "id": 8,
+      "type": "SaveStringToTextNode",
+      "pos": [
+        -805.6523923609108,
+        428.75278539604915
+      ],
+      "size": [
+        270,
+        154
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "label": "编码",
+          "name": "encoding",
+          "type": "COMBO",
+          "widget": {
+            "name": "encoding"
+          },
+          "link": null
+        },
+        {
+          "label": "保存模式",
+          "name": "save_mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "save_mode"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "文件路径",
+          "name": "file_path",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "xingyuezhiyuan/Comfyui-txtnode",
+        "ver": "1ccd026828c97a736d0672f0e1cdb4d246d5566e",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "SaveStringToTextNode"
+      },
+      "widgets_values": [
+        "output",
+        "txt",
+        "utf-8",
+        "single_file",
+        "J:\\ComfyUI-aki-v2\\ComfyUI\\custom_nodes\\output"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "Note",
+      "pos": [
+        -522.7411262823653,
+        -43.80338655766472
+      ],
+      "size": [
+        313.5653316774243,
+        141.50024726655897
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "第一个lora加载节点上游触发词输入可不接，也不会报错。\n翻译文件在本插件  Comfyui-txtnode.json \n放到自己的翻译插件文件夹内刷新即可翻译"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 5,
+      "type": "Text Concatenate",
+      "pos": [
+        802.7843056806706,
+        -100.65822833852943
+      ],
+      "size": [
+        270,
+        142
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "文本_A",
+          "name": "text_a",
+          "shape": 7,
+          "type": "STRING",
+          "link": 7
+        },
+        {
+          "label": "文本_B",
+          "name": "text_b",
+          "shape": 7,
+          "type": "STRING",
+          "link": 6
+        },
+        {
+          "label": "文本_C",
+          "name": "text_c",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "label": "文本_d",
+          "name": "text_d",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "字符串",
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "was-ns",
+        "ver": "afeee09ba44e713ec52a413ac6b105fd06b2d356",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "Text Concatenate"
+      },
+      "widgets_values": [
+        ", ",
+        "true"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "LoRALoaderModelOnly",
+      "pos": [
+        359.95992009022217,
+        -307.2430083132053
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "模型",
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "label": "上游触发词",
+          "name": "upstream_trigger_word",
+          "shape": 7,
+          "type": "STRING",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": null
+        },
+        {
+          "label": "触发词",
+          "name": "trigger_word",
+          "type": "STRING",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "xingyuezhiyuan/Comfyui-txtnode",
+        "ver": "baa790f085ae68ffa1580e0c2684aff6b431fa44",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        },
+        "Node name for S&R": "LoRALoaderModelOnly"
+      },
+      "widgets_values": [
+        "2D.safetensors",
+        1,
+        "",
+        null
+      ]
+    },
+    {
+      "id": 6,
+      "type": "CR Text",
+      "pos": [
+        362.43430513413165,
+        -31.89316277603092
+      ],
+      "size": [
+        393.7633730257256,
+        148.40611732040998
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "*",
+          "links": [
+            7
+          ]
+        },
+        {
+          "label": "显示帮助",
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Comfyroll_CustomNodes",
+        "ver": "d78b780ae43fcf8c6b7c6505e6ffb4584281ceca",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "CR Text"
+      },
+      "widgets_values": [
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      1,
+      2,
+      1,
+      "STRING"
+    ],
+    [
+      3,
+      2,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      2,
+      1,
+      3,
+      1,
+      "STRING"
+    ],
+    [
+      5,
+      4,
+      0,
+      1,
+      0,
+      "MODEL"
+    ],
+    [
+      6,
+      3,
+      1,
+      5,
+      1,
+      "STRING"
+    ],
+    [
+      7,
+      6,
+      0,
+      5,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "多lora串联",
+      "bounding": [
+        -888.997170648534,
+        -441.5361745697187,
+        2094.197181132788,
+        663.7589393100254
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "插件其余节点",
+      "bounding": [
+        -887.9703366748251,
+        261.32452140343156,
+        1238.7926643708206,
+        419.32813595612646
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.5249209980164321,
+      "offset": [
+        1929.449017426059,
+        1072.9979183621695
+      ]
+    },
+    "frontendVersion": "1.43.18",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
