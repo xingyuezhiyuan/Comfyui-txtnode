@@ -4,6 +4,7 @@ from comfy_api.latest import ComfyExtension, io
 WEB_DIRECTORY = "./web"
 
 from .nodes import SaveStringToTextNode, SaveImageToFolderNode, LoadTextFilesNode
+from .nodes import ResizeAndPadNode, RemovePadFromImageNode
 from .lora_loader_node import LoRALoaderModelOnly
 
 # 导入 server 模块注册 API 路由(装饰器在模块加载时自动注册)
@@ -18,6 +19,8 @@ class TxtNodeExtension(ComfyExtension):
             SaveImageToFolderNode,
             LoadTextFilesNode,
             LoRALoaderModelOnly,
+            ResizeAndPadNode,
+            RemovePadFromImageNode,
         ]
 
 

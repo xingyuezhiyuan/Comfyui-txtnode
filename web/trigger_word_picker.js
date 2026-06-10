@@ -490,7 +490,7 @@ app.registerExtension({
 
             [500, 2000, 5000].forEach(d => setTimeout(() => {
                 for (const n of app.graph._nodes) {
-                    if (n.type === "CLIPTextEncode") injectButton(n);
+                    if (n.type === "CLIPTextEncode" || n.type === "CR Text") injectButton(n);
                 }
             }, d));
 
@@ -499,7 +499,7 @@ app.registerExtension({
                 const orig = app.graph.onNodeAdded;
                 app.graph.onNodeAdded = function (node) {
                     orig?.call(this, node);
-                    if (node?.type === "CLIPTextEncode") {
+                    if (node?.type === "CLIPTextEncode" || node?.type === "CR Text") {
                         [300, 1500, 4000].forEach(d => setTimeout(() => injectButton(node), d));
                     }
                 };
