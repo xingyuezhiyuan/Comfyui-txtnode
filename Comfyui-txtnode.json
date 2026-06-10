@@ -56,5 +56,35 @@
             "MODEL": "模型",
             "trigger_word": "触发词"
         }
+    },
+    "ResizeAndPadNode": {
+        "title": "调整图像尺寸填充",
+        "inputs": {
+            "input_image": "输入图像"
+        },
+        "widgets": {
+            "target_size": "目标尺寸",
+            "resolution_multiple": "对齐倍数",
+            "upscale_method": "缩放算法",
+            "resize_and_pad": "调整并填充"
+        },
+        "outputs": {
+            "output_image": "输出图像",
+            "image_info": "图像信息"
+        }
+    },
+    "RemovePadFromImageNode": {
+        "title": "移除图像填充",
+        "inputs": {
+            "input_image": "输入图像",
+            "image_info": "图像信息",
+            "latent_scale": "Latent缩放因子"
+        },
+        "widgets": {
+            "remove_pad": "移除填充"
+        },
+        "outputs": {
+            "output_image": "输出图像"
+        }
     }
 }
