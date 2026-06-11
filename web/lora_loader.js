@@ -2,11 +2,11 @@ import { app } from "../../../scripts/app.js";
 import { saveTriggerWord, getTriggerWord } from "./utils/trigger-word-api.js";
 
 app.registerExtension({
-    name: "Comfyui-txtnode.LoRALoaderModelOnly",
+    name: "Comfyui-txtnode.LoRALoader",
     
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        // 检查是否是 LoRALoaderModelOnly 节点
-        if (nodeData.name !== "LoRALoaderModelOnly") {
+        // 检查是否是 LoRALoader 相关节点
+        if (nodeData.name !== "LoRALoaderModelOnly" && nodeData.name !== "LoRALoaderFull") {
             return;
         }
         
@@ -35,7 +35,7 @@ app.registerExtension({
                         originalCallback(value);
                     }
                     // 自动加载新 LoRA 的触发词
-                    console.log(`[LoRALoaderModelOnly] 切换 LoRA: ${value}`);
+                    console.log(`[LoRALoader] 切换 LoRA: ${value}`);
                     this.loadTriggerWord(value);
                 };
                 
@@ -43,7 +43,7 @@ app.registerExtension({
                 // 等待 widget 完全初始化
                 setTimeout(() => {
                     if (loraNameWidget.value) {
-                        console.log(`[LoRALoaderModelOnly] 初始化加载触发词: ${loraNameWidget.value}`);
+                        console.log(`[LoRALoader] 初始化加载触发词: ${loraNameWidget.value}`);
                         this.loadTriggerWord(loraNameWidget.value);
                     }
                 }, 200);
@@ -59,7 +59,7 @@ app.registerExtension({
             const loraNameWidget = this.widgets.find(w => w.name === "lora_name");
 
             if (!triggerWordWidget || !loraNameWidget) {
-                console.error("[LoRALoaderModelOnly] 找不到触发词或 LoRA 名称组件");
+                console.error("[LoRALoader] 找不到触发词或 LoRA 名称组件");
                 return;
             }
 
@@ -79,7 +79,7 @@ app.registerExtension({
             const result = await saveTriggerWord(loraName, triggerWord);
 
             if (result.success) {
-                console.log(`[LoRALoaderModelOnly] 触发词已保存: ${loraName}`);
+                console.log(`[LoRALoader] 触发词已保存: ${loraName}`);
                 app.extensionManager.toast.add({
                     severity: "success",
                     summary: "保存触发词",
