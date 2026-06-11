@@ -57,6 +57,25 @@
             "trigger_word": "触发词"
         }
     },
+    "LoRALoaderFull": {
+        "title": "LoRA加载器（完整）",
+        "inputs": {
+            "model": "模型",
+            "clip": "CLIP",
+            "upstream_trigger_word": "上游触发词"
+        },
+        "widgets": {
+            "lora_name": "LoRA名称",
+            "strength_model": "模型强度",
+            "strength_clip": "CLIP强度",
+            "trigger_word": "触发词"
+        },
+        "outputs": {
+            "MODEL": "模型",
+            "CLIP": "CLIP",
+            "trigger_word": "触发词"
+        }
+    },
     "ResizeAndPadNode": {
         "title": "调整图像尺寸填充",
         "inputs": {

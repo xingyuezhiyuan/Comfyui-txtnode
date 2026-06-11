@@ -6,6 +6,7 @@ WEB_DIRECTORY = "./web"
 from .nodes import SaveStringToTextNode, SaveImageToFolderNode, LoadTextFilesNode
 from .nodes import ResizeAndPadNode, RemovePadFromImageNode
 from .lora_loader_node import LoRALoaderModelOnly
+from .lora_loader_full_node import LoRALoaderFull
 
 # 导入 server 模块注册 API 路由(装饰器在模块加载时自动注册)
 from . import server
@@ -19,6 +20,7 @@ class TxtNodeExtension(ComfyExtension):
             SaveImageToFolderNode,
             LoadTextFilesNode,
             LoRALoaderModelOnly,
+            LoRALoaderFull,
             ResizeAndPadNode,
             RemovePadFromImageNode,
         ]
