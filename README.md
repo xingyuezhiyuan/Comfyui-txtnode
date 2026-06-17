@@ -10,6 +10,7 @@
 | **Save Image to Folder** | `Utils` | 将图片张量保存到指定文件夹 |
 | **Load Text Files from Folder** | `Utils` | 按索引从文件夹加载文本文件（配合 for 循环） |
 | **LoRA加载器(仅模型)** | `loaders/lora` | 加载 LoRA 到模型（不含 CLIP），支持触发词管理 |
+| **LoRA加载器(完整)** | `loaders/lora` | 同时加载 LoRA 到模型和 CLIP，支持触发词管理 |
 
 ---
 
@@ -99,6 +100,24 @@
 
 **输出**：`MODEL` - 应用 LoRA 后的模型，`trigger_word` - 合并后的触发词
 
+---
+
+### LoRA加载器(完整)
+
+同时将 LoRA 应用到模型和 CLIP，支持触发词管理和多 LoRA 触发词链接。
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `model` | MODEL | 是 | - | 来自上游的输入模型 |
+| `clip` | CLIP | 是 | - | 来自上游的输入 CLIP |
+| `lora_name` | COMBO | 是 | - | LoRA 模型文件选择器 |
+| `strength_model` | FLOAT | 是 | `1.0` | LoRA 模型强度（-10.0 ~ 10.0） |
+| `strength_clip` | FLOAT | 是 | `1.0` | LoRA CLIP 强度（-10.0 ~ 10.0） |
+| `trigger_word` | STRING | 是 | `""` | 当前 LoRA 的触发词（多行输入） |
+| `upstream_trigger_word` | STRING | 否 | `""` | 上游 LoRA 的触发词（端口输入） |
+
+**输出**：`MODEL` - 应用 LoRA 后的模型，`CLIP` - 应用 LoRA 后的 CLIP，`trigger_word` - 合并后的触发词
+
 **触发词管理特性**：
 - **自动保存**：执行时将 `trigger_word` 自动保存到 `lora_trigger_words.json`
 - **自动加载**：切换 LoRA 选择时，自动回填已保存的触发词
@@ -184,7 +203,8 @@ Comfyui-txtnode/
 │   ├── save_string.py             # 保存字符串到文本节点
 │   ├── save_image.py              # 保存图像到文件夹节点
 │   └── load_text.py               # 批量加载文本文件节点
-├── lora_loader_node.py            # LoRA 加载器节点实现（V3 API）
+├── lora_loader_node.py            # LoRA 加载器节点实现（仅模型）
+├── lora_loader_full_node.py       # LoRA 加载器节点实现（完整版）
 ├── trigger_word_manager.py        # 触发词配置管理模块（集中读写逻辑）
 ├── server.py                      # API 路由（触发词保存/加载/查询 + 模型预览图获取/上传）
 ├── lora_trigger_words.json        # 触发词配置文件（自动生成）
