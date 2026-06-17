@@ -74,7 +74,7 @@ app.registerExtension({
 
                 // 鼠标进入 → 请求预览图
                 entry.addEventListener("mouseenter", (e) => {
-                    const src = `/model_preview/get_image_by_name?folder_type=${folderType}&filename=${encodeURIComponent(modelName)}`;
+                    const src = `/model_preview/get_image_by_name?folder_type=${folderType}&filename=${encodeURIComponent(modelName)}&_t=${Date.now()}`;
                     previewImg.src = src;
                     previewImg.style.display = "block";
                     
