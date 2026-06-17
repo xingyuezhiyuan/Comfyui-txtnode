@@ -13,7 +13,7 @@ import { showPreviewManager } from "./model_preview_manager.js";
  */
 
 // LoRA 节点类型列表（自定义 + 官方）
-const LORA_NODE_TYPES = ["LoRALoaderModelOnly", "LoraLoader", "LoraLoaderModelOnly"];
+const LORA_NODE_TYPES = ["LoRALoaderModelOnly", "LoRALoaderFull", "LoraLoader", "LoraLoaderModelOnly"];
 
 let triggerWordsCache = [];
 let lastFetchTime = 0;
@@ -115,12 +115,6 @@ function showEditDialog(loraName, currentWord, parentOverlay) {
 
     saveBtn.onclick = async () => {
         const newWord = input.value.trim();
-        if (!newWord) {
-            app.extensionManager.toast.add({
-                severity: "warn", summary: "修改触发词", detail: "触发词不能为空", life: 2000
-            });
-            return;
-        }
 
         saveBtn.textContent = "保存中...";
         saveBtn.disabled = true;
@@ -128,8 +122,12 @@ function showEditDialog(loraName, currentWord, parentOverlay) {
 
         const result = await saveTriggerWordInPopup(loraName, newWord);
         if (result.success) {
+            // 同步到工作流中的 LoRA 节点（空值则清空输入框）
+            syncTriggerWordToNode(loraName, newWord);
+            
+            const message = newWord ? result.message : "已删除触发词";
             app.extensionManager.toast.add({
-                severity: "success", summary: "修改触发词", detail: result.message, life: 2000
+                severity: "success", summary: "修改触发词", detail: message, life: 2000
             });
             editOv.remove();
             parentOverlay.remove();
@@ -236,7 +234,7 @@ async function showPopup() {
             twSpan.style.cssText = "font-size:13px;color:#fff;font-weight:500;flex:1;word-break:break-word;cursor:pointer;";
             twSpan.textContent = item.trigger_word;
             twSpan.onclick = () => {
-                applyTriggerWord(item.trigger_word);
+                applyTriggerWord(item.trigger_word, item.lora_name);
                 ov.remove();
             };
             r.appendChild(twSpan);
@@ -312,6 +310,9 @@ async function showPopup() {
 
                 const result = await saveTriggerWordInPopup(loraName, triggerWord);
                 if (result.success) {
+                    // 同步写入到工作流中对应的 LoRA 节点
+                    syncTriggerWordToNode(loraName, triggerWord);
+                    
                     app.extensionManager.toast.add({
                         severity: "success", summary: "保存触发词", detail: result.message, life: 2000
                     });
@@ -364,6 +365,29 @@ async function showPopup() {
 }
 
 /**
+ * 同步触发词到工作流中对应的 LoRA 节点
+ * @param {string} loraName - LoRA 文件名
+ * @param {string} triggerWord - 触发词内容
+ */
+function syncTriggerWordToNode(loraName, triggerWord) {
+    if (!app.graph) return;
+    
+    for (const node of app.graph._nodes) {
+        if (!LORA_NODE_TYPES.includes(node.type)) continue;
+        
+        const loraWidget = node.widgets?.find(w => w.name === "lora_name");
+        if (loraWidget?.value !== loraName) continue;
+        
+        const twWidget = node.widgets?.find(w => w.name === "trigger_word");
+        if (twWidget) {
+            twWidget.value = triggerWord;
+            twWidget.callback?.(triggerWord);
+            console.log(`[Comfyui-txtnode] 已同步触发词到节点 ${node.id}: ${loraName}`);
+        }
+    }
+}
+
+/**
  * 获取 LoRA 文件名的简短形式
  */
 function getShortName(name) {
@@ -371,15 +395,35 @@ function getShortName(name) {
 }
 
 /**
- * 应用触发词到对应的 CLIP Text Encode 节点
+ * 应用触发词到对应的节点
+ * @param {string} triggerWord - 触发词内容
+ * @param {string} sourceLoraName - 触发词来源的 LoRA 名称（用于 LoRA 节点校验）
  */
-function applyTriggerWord(triggerWord) {
+function applyTriggerWord(triggerWord, sourceLoraName) {
     if (!currentButtonNode) {
         console.warn("[Comfyui-txtnode] 未找到当前节点");
         return;
     }
 
-    const tw = currentButtonNode.widgets?.find(w => w.name === "text");
+    // 如果当前节点是 LoRA 节点，检查 LoRA 名称是否匹配
+    const LORA_BUTTON_TYPES = ["LoRALoaderModelOnly", "LoRALoaderFull"];
+    if (LORA_BUTTON_TYPES.includes(currentButtonNode.type) && sourceLoraName) {
+        const loraWidget = currentButtonNode.widgets?.find(w => w.name === "lora_name");
+        const currentLoraName = loraWidget?.value;
+        
+        if (currentLoraName && currentLoraName !== sourceLoraName) {
+            // LoRA 名称不匹配，弹出确认对话框
+            const currentShort = getShortName(currentLoraName);
+            const sourceShort = getShortName(sourceLoraName);
+            
+            if (!confirm(`当前节点加载的 LoRA 与触发词来源不匹配！\n\n当前节点: ${currentShort}\n触发词来源: ${sourceShort}\n\n是否仍要应用触发词？`)) {
+                return; // 用户取消
+            }
+        }
+    }
+
+    // 支持 CLIPTextEncode/CR Text 的 "text" 字段和 LoRA 节点的 "trigger_word" 字段
+    const tw = currentButtonNode.widgets?.find(w => w.name === "text" || w.name === "trigger_word");
     if (tw) {
         tw.value = ((tw.value || "").trim() ? tw.value + ", " : "") + triggerWord;
         // 触发 widget 的回调以更新 UI
@@ -394,7 +438,8 @@ function esc(s) { const d = document.createElement("div"); d.textContent = s; re
 
 /** 找到 textarea 的挂载容器 */
 function getMountContainer(node) {
-    const tw = node.widgets?.find(w => w.name === "text");
+    // 支持 CLIPTextEncode/CR Text 的 "text" 字段和 LoRA 节点的 "trigger_word" 字段
+    const tw = node.widgets?.find(w => w.name === "text" || w.name === "trigger_word");
     if (!tw) return null;
 
     const el = tw.element || tw.inputEl;
@@ -454,7 +499,7 @@ function injectButton(node) {
             btn.oncontextmenu = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                showPreviewManager();
+                showPreviewManager(e);
             };
 
             const img = document.createElement("img");
@@ -484,6 +529,14 @@ function injectButton(node) {
     }, 100);
 }
 
+// 支持注入 TW 按钮的节点类型
+const TW_BUTTON_NODE_TYPES = ["CLIPTextEncode", "CR Text", "LoRALoaderModelOnly", "LoRALoaderFull"];
+
+/** 检查节点是否支持 TW 按钮 */
+function isTWButtonSupported(node) {
+    return TW_BUTTON_NODE_TYPES.includes(node?.type);
+}
+
 app.registerExtension({
     name: "Comfyui-txtnode.TriggerWordPicker",
 
@@ -497,7 +550,7 @@ app.registerExtension({
 
             [500, 2000, 5000].forEach(d => setTimeout(() => {
                 for (const n of app.graph._nodes) {
-                    if (n.type === "CLIPTextEncode" || n.type === "CR Text") injectButton(n);
+                    if (isTWButtonSupported(n)) injectButton(n);
                 }
             }, d));
 
@@ -506,7 +559,7 @@ app.registerExtension({
                 const orig = app.graph.onNodeAdded;
                 app.graph.onNodeAdded = function (node) {
                     orig?.call(this, node);
-                    if (node?.type === "CLIPTextEncode" || node?.type === "CR Text") {
+                    if (isTWButtonSupported(node)) {
                         [300, 1500, 4000].forEach(d => setTimeout(() => injectButton(node), d));
                     }
                 };
