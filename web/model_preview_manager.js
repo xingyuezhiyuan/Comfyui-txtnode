@@ -258,32 +258,57 @@ function triggerFileSelect(model, onFileSelected) {
 
 /**
  * 显示模型预览图管理弹窗
+ * @param {MouseEvent} event - 鼠标事件（用于定位弹窗）
  */
-export async function showPreviewManager() {
+export async function showPreviewManager(event) {
     // 移除已存在的弹窗
     document.querySelector(".mp-manager-overlay")?.remove();
     
     // 扫描工作流中的模型
     const models = getWorkflowModels();
     
-    // 创建弹窗
+    // 创建弹窗（与选择触发词弹窗风格一致）
     const overlay = document.createElement("div");
     overlay.className = "mp-manager-overlay";
-    overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;";
+    overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.3);";
     
     const popup = document.createElement("div");
-    popup.style.cssText = "background:#2a2a2e;border:1px solid #555;border-radius:8px;min-width:480px;max-width:600px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.5);";
+    popup.style.cssText = "position:fixed;background:#2a2a2e;border:1px solid #555;border-radius:8px;min-width:400px;max-width:520px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.5);";
     
-    // 头部
+    // 根据鼠标位置计算弹窗位置
+    if (event) {
+        const popupWidth = 420;
+        const popupHeight = 400; // 预估高度
+        let left = event.clientX + 10;
+        let top = event.clientY - 20;
+        
+        // 边界检测
+        if (left + popupWidth > window.innerWidth) {
+            left = window.innerWidth - popupWidth - 20;
+        }
+        if (top + popupHeight > window.innerHeight) {
+            top = window.innerHeight - popupHeight - 20;
+        }
+        if (left < 10) left = 10;
+        if (top < 10) top = 10;
+        
+        popup.style.left = `${left}px`;
+        popup.style.top = `${top}px`;
+    } else {
+        // 没有鼠标事件时居中显示
+        popup.style.cssText += ";left:50%;top:50%;transform:translate(-50%,-50%);";
+    }
+    
+    // 头部（与选择触发词弹窗一致）
     const header = document.createElement("div");
-    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;font-size:14px;font-weight:600;color:#e0e0e0;";
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #444;font-size:14px;font-weight:600;color:#e0e0e0;";
     header.innerHTML = `<span>模型预览图管理</span><button style="background:none;border:none;color:#999;cursor:pointer;font-size:16px;padding:0 4px;">✕</button>`;
     header.querySelector("button").onclick = () => overlay.remove();
     popup.appendChild(header);
     
-    // 内容区
+    // 内容区（与选择触发词弹窗一致）
     const listContainer = document.createElement("div");
-    listContainer.style.cssText = "overflow-y:auto;padding:12px;flex:1;";
+    listContainer.style.cssText = "overflow-y:auto;padding:8px;flex:1;";
     
     if (models.length === 0) {
         listContainer.innerHTML = `
