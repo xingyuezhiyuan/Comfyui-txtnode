@@ -171,6 +171,17 @@ def setup_routes():
 
                 # 构建预览图路径（模型同名，替换扩展名）
                 base_path = os.path.splitext(model_path)[0]
+
+                # 删除已有的预览图，避免旧文件残留导致新图不生效
+                for ext in [".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG"]:
+                    old_path = base_path + ext
+                    if os.path.exists(old_path):
+                        try:
+                            os.remove(old_path)
+                            print(f"[ModelPreview] 已删除旧预览图: {old_path}")
+                        except OSError as e:
+                            print(f"[ModelPreview] 删除旧预览图失败: {old_path}, {e}")
+
                 preview_path = base_path + image_ext
                 
                 # 保存预览图

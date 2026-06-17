@@ -72,7 +72,7 @@ function getWorkflowModels() {
  * @returns {Promise<{has_preview: boolean, preview_url: string}>}
  */
 async function checkPreviewImage(folderType, filename) {
-    const url = `/model_preview/get_image_by_name?folder_type=${folderType}&filename=${encodeURIComponent(filename)}`;
+    const url = `/model_preview/get_image_by_name?folder_type=${folderType}&filename=${encodeURIComponent(filename)}&_t=${Date.now()}`;
     
     try {
         const response = await fetch(url, { method: "HEAD" });
