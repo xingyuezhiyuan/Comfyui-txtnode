@@ -1,6 +1,21 @@
 # ComfyUI Text Node 插件
 
-基于 **ComfyUI V3 API** 构建的自定义节点插件，提供文本文件操作、图片保存、批量文件加载、LoRA 触发词管理以及模型预览图管理等实用功能。
+> [English](./README_EN.md) | **中文**
+
+基于 **ComfyUI V3 API** 构建的自定义节点插件，提供文本文件操作、图片处理、批量文件加载、LoRA 触发词管理以及模型预览图管理等实用功能。
+
+---
+
+## 功能特性
+
+- **文本节点**：保存字符串到文件、从文件夹加载文本文件
+- **图像节点**：保存图像到文件夹、调整图像尺寸填充、移除图像填充
+- **LoRA 加载器**：两个版本的 LoRA 加载器，支持触发词管理
+- **触发词选择器**：在文本节点和 LoRA 节点上提供快捷触发词选择按钮
+- **模型预览图管理**：右键按钮打开管理弹窗，为模型添加/修改预览图
+- **悬停预览**：右键菜单悬停模型名时自动显示预览图
+
+---
 
 ## 节点列表
 
@@ -9,6 +24,8 @@
 | **Save String to Text File** | `Utils` | 将文本内容保存到本地文件 |
 | **Save Image to Folder** | `Utils` | 将图片张量保存到指定文件夹 |
 | **Load Text Files from Folder** | `Utils` | 按索引从文件夹加载文本文件（配合 for 循环） |
+| **调整图像尺寸填充** | `image/transform` | 将图像调整尺寸并填充到指定大小 |
+| **移除图像填充** | `image/transform` | 移除图像填充，恢复原始尺寸 |
 | **LoRA加载器(仅模型)** | `loaders/lora` | 加载 LoRA 到模型（不含 CLIP），支持触发词管理 |
 | **LoRA加载器(完整)** | `loaders/lora` | 同时加载 LoRA 到模型和 CLIP，支持触发词管理 |
 
@@ -21,7 +38,7 @@
    ComfyUI/custom_nodes/Comfyui-txtnode/
    ```
 2. 重启 ComfyUI
-3. 节点分别出现在 `Utils` 和 `loaders/lora` 分类下
+3. 节点分别出现在 `Utils`、`image/transform` 和 `loaders/lora` 分类下
 
 ---
 
@@ -86,6 +103,35 @@
 
 ---
 
+### 调整图像尺寸填充
+
+将图像调整尺寸并填充到指定大小，支持多种填充模式。
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `image` | IMAGE | 是 | - | 输入图像 |
+| `target_width` | INT | 是 | `512` | 目标宽度 |
+| `target_height` | INT | 是 | `512` | 目标高度 |
+| `mode` | COMBO | 是 | `fit` | 填充模式：fit / fill / stretch |
+| `background_color` | STRING | 否 | `#000000` | 背景颜色（十六进制） |
+
+**输出**：`IMAGE` - 调整后的图像，`pad_info` - 填充信息（用于还原）
+
+---
+
+### 移除图像填充
+
+移除图像填充，恢复原始尺寸。配合"调整图像尺寸填充"节点使用。
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `image` | IMAGE | 是 | - | 填充后的图像 |
+| `pad_info` | STRING | 是 | - | 填充信息（来自上游节点） |
+
+**输出**：`IMAGE` - 恢复原始尺寸的图像
+
+---
+
 ### LoRA加载器(仅模型)
 
 将 LoRA 应用到模型（不应用到 CLIP），支持触发词管理和多 LoRA 触发词链接。
@@ -118,12 +164,16 @@
 
 **输出**：`MODEL` - 应用 LoRA 后的模型，`CLIP` - 应用 LoRA 后的 CLIP，`trigger_word` - 合并后的触发词
 
-**触发词管理特性**：
+---
+
+## 触发词管理特性
+
+LoRA 加载器节点提供完整的触发词管理功能：
+
 - **自动保存**：执行时将 `trigger_word` 自动保存到 `lora_trigger_words.json`
 - **自动加载**：切换 LoRA 选择时，自动回填已保存的触发词
 - **多级链接**：通过 `upstream_trigger_word` 端口链接多个 LoRA 节点，触发词自动合并
-- **前端支持**：节点面板提供"保存触发词"按钮和右键"刷新触发词"菜单
-- **触发词选择器**：CLIP Text Encode / CR Text 节点提供触发词快捷选择按钮，可直接从已保存的触发词列表中选取
+- **触发词选择器**：在文本节点和 LoRA 节点的输入框左下角提供快捷按钮
 
 ---
 
@@ -147,33 +197,31 @@
 4. 图片保存到指定目录
 
 ### 使用 LoRA 触发词（单 LoRA）
-1. 添加 **LoRA加载器(仅模型)** 节点
+1. 添加 **LoRA加载器(仅模型)** 或 **LoRA加载器(完整)** 节点
 2. 选择一个 LoRA 模型
 3. 在 `trigger_word` 输入框中填入该 LoRA 的触发词
 4. 将 `trigger_word` 输出连接到 CLIP Text Encode 或 CR Text 的文本输入
 5. 执行工作流后，触发词自动保存
 
 ### 多 LoRA 触发词链接
-1. 串联两个 **LoRA加载器(仅模型)** 节点
+1. 串联两个 LoRA 加载器节点
 2. 第一个节点的 `trigger_word` 输出连接到第二个节点的 `upstream_trigger_word` 输入
 3. 两个节点的触发词自动合并为 `"触发词A, 触发词B"` 格式输出
 
 ### 使用触发词选择器
-1. 添加 **LoRA加载器(仅模型)** 节点并配置触发词
-2. 执行工作流后触发词自动保存
-3. 在 **CLIP Text Encode** 或 **CR Text** 节点的文本输入框左下角点击图标按钮
-4. 弹窗显示已保存的触发词列表和未保存的 LoRA
-   - **已保存的触发词**：鼠标移到提示词上点击直接应用
-   - **未保存的 LoRA**：提供输入框和保存按钮
-   - **编辑功能**：点击"修改"按钮可编辑已保存的触发词
-5. 选择触发词后自动追加到提示词输入框中
+1. 在 **CLIP Text Encode**、**CR Text** 或 **LoRA 加载器** 节点的输入框左下角找到图标按钮
+2. **左键点击** 按钮，弹出触发词选择弹窗
+3. 弹窗显示已保存的触发词列表和未保存的 LoRA
+   - **已保存的触发词**：点击直接应用（LoRA 节点会检查 LoRA 名称是否匹配）
+   - **未保存的 LoRA**：提供输入框和保存按钮，保存后自动写入节点输入框
+   - **编辑功能**：点击"修改"按钮可编辑或删除已保存的触发词
 
 ### 使用模型预览图管理
-1. 在 **CLIP Text Encode** 或 **CR Text** 节点的文本输入框左下角找到图标按钮
+1. 在文本节点或 LoRA 节点的输入框左下角找到图标按钮
 2. **右键点击** 该按钮，弹出模型预览图管理窗口
 3. 窗口自动扫描工作流中的模型加载器节点：
    - CheckpointLoaderSimple（Checkpoint 模型）
-   - LoraLoader / LoraLoaderModelOnly / LoRALoaderModelOnly（LoRA 模型）
+   - LoraLoader / LoraLoaderModelOnly / LoRALoaderModelOnly / LoRALoaderFull（LoRA 模型）
    - UNETLoader / UnetLoader（UNet/Diffusion 模型）
 4. 列表显示所有检测到的模型，每个模型旁边标注类型
    - **有预览图**：显示缩略图 + `[修改]` 按钮
@@ -202,23 +250,25 @@ Comfyui-txtnode/
 │   ├── utils.py                   # 共享路径工具函数
 │   ├── save_string.py             # 保存字符串到文本节点
 │   ├── save_image.py              # 保存图像到文件夹节点
-│   └── load_text.py               # 批量加载文本文件节点
+│   ├── load_text.py               # 批量加载文本文件节点
+│   └── resize_pad.py              # 调整图像尺寸填充节点
 ├── lora_loader_node.py            # LoRA 加载器节点实现（仅模型）
 ├── lora_loader_full_node.py       # LoRA 加载器节点实现（完整版）
 ├── trigger_word_manager.py        # 触发词配置管理模块（集中读写逻辑）
-├── server.py                      # API 路由（触发词保存/加载/查询 + 模型预览图获取/上传）
+├── server.py                      # API 路由（触发词 + 模型预览图）
 ├── lora_trigger_words.json        # 触发词配置文件（自动生成）
 ├── requirements.txt               # 项目依赖
 ├── web/
 │   ├── icon.png                   # 触发词选择器图标
 │   ├── lora_loader.js             # LoRA 节点前端扩展（触发词管理）
-│   ├── trigger_word_picker.js     # 触发词选择器（CLIP Text Encode / CR Text 扩展）
+│   ├── trigger_word_picker.js     # 触发词选择器（文本节点 + LoRA 节点）
 │   ├── model_preview.js           # 右键菜单悬停预览图功能
 │   ├── model_preview_manager.js   # 模型预览图管理弹窗（右键 TW 按钮）
 │   └── utils/
-│       ── trigger-word-api.js    # 触发词 API 封装模块
+│       └── trigger-word-api.js    # 触发词 API 封装模块
 ├── CLAUDE.md                      # 项目开发规范
-└── README.md                      # 本文档
+├── README.md                      # 本文档（中文）
+└── README_EN.md                   # 英文文档
 ```
 
 ---
@@ -229,7 +279,7 @@ Comfyui-txtnode/
 - **扩展注册**：通过 `ComfyExtension` + `comfy_entrypoint()` 注册（ComfyUI 新版入口）
 - **前端扩展**：`WEB_DIRECTORY = "./web"` 加载前端 JS 文件
   - `lora_loader.js`：LoRA 节点触发词管理（保存按钮、自动加载、右键菜单）
-  - `trigger_word_picker.js`：CLIP Text Encode / CR Text 节点触发词选择器（支持 LiteGraph 和 Vue 模式）
+  - `trigger_word_picker.js`：触发词选择器（支持文本节点和 LoRA 节点）
   - `model_preview.js`：右键菜单悬停预览图（Monkey Patch LiteGraph.ContextMenu）
   - `model_preview_manager.js`：模型预览图管理弹窗（右键 TW 按钮打开）
 - **API 服务**：`server.py` 注册 HTTP 路由
