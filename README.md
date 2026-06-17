@@ -1,6 +1,6 @@
 # ComfyUI Text Node 插件
 
-基于 **ComfyUI V3 API** 构建的自定义节点插件，提供文本文件操作、图片保存、批量文件加载以及 LoRA 触发词管理等实用功能。
+基于 **ComfyUI V3 API** 构建的自定义节点插件，提供文本文件操作、图片保存、批量文件加载、LoRA 触发词管理以及模型预览图管理等实用功能。
 
 ## 节点列表
 
@@ -168,6 +168,28 @@
    - **编辑功能**：点击"修改"按钮可编辑已保存的触发词
 5. 选择触发词后自动追加到提示词输入框中
 
+### 使用模型预览图管理
+1. 在 **CLIP Text Encode** 或 **CR Text** 节点的文本输入框左下角找到图标按钮
+2. **右键点击** 该按钮，弹出模型预览图管理窗口
+3. 窗口自动扫描工作流中的模型加载器节点：
+   - CheckpointLoaderSimple（Checkpoint 模型）
+   - LoraLoader / LoraLoaderModelOnly / LoRALoaderModelOnly（LoRA 模型）
+   - UNETLoader / UnetLoader（UNet/Diffusion 模型）
+4. 列表显示所有检测到的模型，每个模型旁边标注类型
+   - **有预览图**：显示缩略图 + `[修改]` 按钮
+   - **无预览图**：显示 `[增加]` 按钮
+5. 点击 `[增加]` 或 `[修改]` 按钮：
+   - 弹出文件选择对话框，选择图片文件（支持 png/jpg/webp）
+   - 显示图片预览确认对话框
+   - 确认后图片自动重命名为模型同名，保存到模型所在目录
+6. 上传成功后列表自动刷新
+
+### 使用右键菜单预览图（悬停预览）
+1. 在模型加载器节点（Checkpoint/LoRA/UNet）上右键打开模型选择菜单
+2. 鼠标悬停在模型名称上，自动弹出同名预览图
+3. 预览图显示在菜单右侧，超出屏幕时自动翻转到左侧
+4. 点击菜单或按鼠标任意键，预览图自动隐藏
+
 ---
 
 ## 文件结构
@@ -184,13 +206,15 @@ Comfyui-txtnode/
 ├── lora_loader_node.py            # LoRA 加载器节点实现（仅模型）
 ├── lora_loader_full_node.py       # LoRA 加载器节点实现（完整版）
 ├── trigger_word_manager.py        # 触发词配置管理模块（集中读写逻辑）
-├── server.py                      # API 路由（触发词保存/加载/查询接口）
+├── server.py                      # API 路由（触发词保存/加载/查询 + 模型预览图获取/上传）
 ├── lora_trigger_words.json        # 触发词配置文件（自动生成）
 ├── requirements.txt               # 项目依赖
 ├── web/
 │   ├── icon.png                   # 触发词选择器图标
 │   ├── lora_loader.js             # LoRA 节点前端扩展（触发词管理）
 │   ├── trigger_word_picker.js     # 触发词选择器（CLIP Text Encode / CR Text 扩展）
+│   ├── model_preview.js           # 右键菜单悬停预览图功能
+│   ├── model_preview_manager.js   # 模型预览图管理弹窗（右键 TW 按钮）
 │   └── utils/
 │       ── trigger-word-api.js    # 触发词 API 封装模块
 ├── CLAUDE.md                      # 项目开发规范
@@ -206,10 +230,14 @@ Comfyui-txtnode/
 - **前端扩展**：`WEB_DIRECTORY = "./web"` 加载前端 JS 文件
   - `lora_loader.js`：LoRA 节点触发词管理（保存按钮、自动加载、右键菜单）
   - `trigger_word_picker.js`：CLIP Text Encode / CR Text 节点触发词选择器（支持 LiteGraph 和 Vue 模式）
+  - `model_preview.js`：右键菜单悬停预览图（Monkey Patch LiteGraph.ContextMenu）
+  - `model_preview_manager.js`：模型预览图管理弹窗（右键 TW 按钮打开）
 - **API 服务**：`server.py` 注册 HTTP 路由
   - `POST /comfyui-txtnode/save_trigger_word` - 保存触发词
   - `GET /comfyui-txtnode/get_trigger_word` - 获取单个触发词
   - `GET /comfyui-txtnode/get_all_trigger_words` - 获取所有触发词
+  - `GET /model_preview/get_image_by_name` - 获取模型同名预览图
+  - `POST /model_preview/upload_preview_image` - 上传模型预览图（JSON + base64）
 
 ---
 

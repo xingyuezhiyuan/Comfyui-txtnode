@@ -1,5 +1,6 @@
 import { app } from "../../../scripts/app.js";
 import { saveTriggerWord, getAllTriggerWords } from "./utils/trigger-word-api.js";
+import { showPreviewManager } from "./model_preview_manager.js";
 
 /**
  * 触发词选择器 — 为 CLIPTextEncode 节点添加触发词快捷按钮
@@ -436,7 +437,7 @@ function injectButton(node) {
 
             const btn = document.createElement("div");
             btn.className = "tw-btn";
-            btn.title = "选择触发词";
+            btn.title = "左键选择触发词，右键修改缩略图";
             btn.style.cssText = "position:absolute;left:7px;bottom:7px;z-index:999;" +
                 "background:rgba(58,58,62,0.45);border:1px solid rgba(102,102,102,0.45);border-radius:3px;" +
                 "cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;" +
@@ -448,6 +449,12 @@ function injectButton(node) {
                 e.stopPropagation();
                 currentButtonNode = node; // 记录当前节点
                 showPopup();
+            };
+            // 右键：打开模型预览图管理弹窗
+            btn.oncontextmenu = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showPreviewManager();
             };
 
             const img = document.createElement("img");
