@@ -422,8 +422,8 @@ function applyTriggerWord(triggerWord, sourceLoraName) {
         }
     }
 
-    // 支持 CLIPTextEncode/CR Text 的 "text" 字段和 LoRA 节点的 "trigger_word" 字段
-    const tw = currentButtonNode.widgets?.find(w => w.name === "text" || w.name === "trigger_word");
+    // 支持 CLIPTextEncode/CR Text 的 "text" 字段、LoRA 节点的 "trigger_word" 字段、PrimitiveStringMultiline 的 "value" 字段
+    const tw = currentButtonNode.widgets?.find(w => w.name === "text" || w.name === "trigger_word" || w.name === "value");
     if (tw) {
         tw.value = ((tw.value || "").trim() ? tw.value + ", " : "") + triggerWord;
         // 触发 widget 的回调以更新 UI
@@ -438,8 +438,8 @@ function esc(s) { const d = document.createElement("div"); d.textContent = s; re
 
 /** 找到 textarea 的挂载容器 */
 function getMountContainer(node) {
-    // 支持 CLIPTextEncode/CR Text 的 "text" 字段和 LoRA 节点的 "trigger_word" 字段
-    const tw = node.widgets?.find(w => w.name === "text" || w.name === "trigger_word");
+    // 支持 CLIPTextEncode/CR Text 的 "text" 字段、LoRA 节点的 "trigger_word" 字段、PrimitiveStringMultiline 的 "value" 字段
+    const tw = node.widgets?.find(w => w.name === "text" || w.name === "trigger_word" || w.name === "value");
     if (!tw) return null;
 
     const el = tw.element || tw.inputEl;
@@ -530,7 +530,7 @@ function injectButton(node) {
 }
 
 // 支持注入 TW 按钮的节点类型
-const TW_BUTTON_NODE_TYPES = ["CLIPTextEncode", "CR Text", "LoRALoaderModelOnly", "LoRALoaderFull"];
+const TW_BUTTON_NODE_TYPES = ["CLIPTextEncode", "CR Text", "LoRALoaderModelOnly", "LoRALoaderFull", "PrimitiveStringMultiline"];
 
 /** 检查节点是否支持 TW 按钮 */
 function isTWButtonSupported(node) {
