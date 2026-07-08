@@ -2,7 +2,7 @@ import json
 import folder_paths
 from comfy_api.latest import io
 
-from .. import trigger_word_manager
+from . import trigger_word_manager
 
 
 class LoRAPromptEncoder(io.ComfyNode):
