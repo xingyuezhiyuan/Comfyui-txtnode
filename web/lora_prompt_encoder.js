@@ -14,7 +14,7 @@ import { showEditTriggerWordDialog, uploadLoraPreview } from "./utils/lora-actio
  */
 
 // 分页选项
-const PAGE_SIZES = [50, 100, 0]; // 0 表示全部
+const PAGE_SIZES = [20, 40, 50, 70, 100, 0]; // 0 表示全部
 const DEFAULT_PAGE_SIZE = 50;
 
 // 缓存
@@ -60,7 +60,7 @@ async function fetchLoraList() {
  */
 function extractFolders() {
     const folders = new Set();
-    folders.add("全部");
+    folders.add("全部（可按文件夹排列）");
 
     for (const name of loraListCache) {
         if (name.includes("/") || name.includes("\\")) {
@@ -74,8 +74,8 @@ function extractFolders() {
     }
 
     loraFoldersCache = Array.from(folders).sort((a, b) => {
-        if (a === "全部") return -1;
-        if (b === "全部") return 1;
+        if (a === "全部（可按文件夹排列）") return -1;
+        if (b === "全部（可按文件夹排列）") return 1;
         return a.localeCompare(b);
     });
 }
@@ -162,7 +162,7 @@ async function initNodeUI(node) {
     const state = {
         selectedLoras: new Map(), // name -> {name, strength}
         searchQuery: "",
-        currentFolder: "全部",
+        currentFolder: "全部（可按文件夹排列）",
         currentPage: 0,
         pageSize: DEFAULT_PAGE_SIZE,
         positivePrompt: "",
@@ -443,7 +443,7 @@ async function initNodeUI(node) {
         let filtered = loraList;
 
         // 文件夹过滤
-        if (state.currentFolder !== "全部") {
+        if (state.currentFolder !== "全部（可按文件夹排列）") {
             filtered = filtered.filter(name => {
                 if (state.currentFolder.includes("/")) {
                     return name.startsWith(state.currentFolder + "/");
