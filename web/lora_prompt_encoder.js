@@ -1076,6 +1076,47 @@ async function initNodeUI(node) {
         }
     }
 
+    // 转发 wheel 事件到 canvas，让 ComfyUI 处理画布缩放
+    // 仅当目标元素实际可滚动时才保留元素自身的滚动行为
+    container.addEventListener("wheel", (e) => {
+        const target = e.target;
+        let isScrollable = false;
+
+        if (target.tagName === "TEXTAREA") {
+            // 仅当 textarea 内容超出高度、实际可滚动时才保留
+            isScrollable = target.scrollHeight > target.clientHeight + 1;
+        } else if (target.tagName === "SELECT") {
+            isScrollable = true;
+        } else if (target.tagName === "INPUT" && target.type === "range") {
+            isScrollable = true;
+        }
+
+        if (!isScrollable) {
+            // 转发事件到 canvas，让 ComfyUI 处理缩放
+            const canvas = app.canvas?.canvas;
+            if (canvas) {
+                canvas.dispatchEvent(new WheelEvent("wheel", {
+                    deltaX: e.deltaX,
+                    deltaY: e.deltaY,
+                    deltaZ: e.deltaZ,
+                    deltaMode: e.deltaMode,
+                    clientX: e.clientX,
+                    clientY: e.clientY,
+                    screenX: e.screenX,
+                    screenY: e.screenY,
+                    ctrlKey: e.ctrlKey,
+                    shiftKey: e.shiftKey,
+                    altKey: e.altKey,
+                    metaKey: e.metaKey,
+                    bubbles: true,
+                    cancelable: true,
+                }));
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, { passive: false });
+
     // 添加 DOM widget
     node.addDOMWidget("lora_prompt_encoder_ui", "lora_prompt_encoder_ui", container, {
         serialize: false,
