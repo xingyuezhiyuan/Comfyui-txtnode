@@ -1,6 +1,6 @@
 import { app } from "../../../scripts/app.js";
 import { saveTriggerWord, getAllTriggerWords } from "./utils/trigger-word-api.js";
-import { showPreviewManager } from "./model_preview_manager.js";
+import { showEditTriggerWordDialog, getShortName } from "./utils/lora-actions.js";
 
 /**
  * 触发词选择器 — 为 CLIPTextEncode 节点添加触发词快捷按钮
@@ -57,113 +57,6 @@ async function saveTriggerWordInPopup(loraName, triggerWord) {
     }
 
     return result;
-}
-
-/**
- * 显示编辑触发词对话框
- */
-function showEditDialog(loraName, currentWord, parentOverlay) {
-    const short = getShortName(loraName);
-
-    const editOv = document.createElement("div");
-    editOv.className = "txtnode-tw-overlay";
-    editOv.style.cssText = "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;";
-
-    const pop = document.createElement("div");
-    pop.style.cssText = "background:#2a2a2e;border:1px solid #555;border-radius:8px;min-width:360px;max-width:480px;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.5);";
-
-    // 头部
-    const hdr = document.createElement("div");
-    hdr.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #444;font-size:14px;font-weight:600;color:#e0e0e0;";
-    hdr.innerHTML = `<span>修改触发词</span><button style="background:none;border:none;color:#999;cursor:pointer;font-size:16px;padding:0 4px;">✕</button>`;
-    hdr.querySelector("button").onclick = () => editOv.remove();
-    pop.appendChild(hdr);
-
-    // 内容
-    const body = document.createElement("div");
-    body.style.cssText = "padding:14px;";
-
-    const loraLabel = document.createElement("div");
-    loraLabel.style.cssText = "font-size:11px;color:#888;margin-bottom:6px;";
-    loraLabel.textContent = short;
-    loraLabel.title = loraName;
-    body.appendChild(loraLabel);
-
-    const input = document.createElement("textarea");
-    input.value = currentWord;
-    input.style.cssText = "width:100%;min-height:60px;background:#1a1a1e;border:1px solid #444;border-radius:4px;padding:8px;color:#e0e0e0;font-size:12px;resize:vertical;outline:none;box-sizing:border-box;";
-    input.onfocus = () => input.style.borderColor = "#4a6ab0";
-    input.onblur = () => input.style.borderColor = "#444";
-    body.appendChild(input);
-
-    // 按钮
-    const btnRow = document.createElement("div");
-    btnRow.style.cssText = "display:flex;justify-content:flex-end;gap:8px;margin-top:12px;";
-
-    const cancelBtn = document.createElement("button");
-    cancelBtn.textContent = "取消";
-    cancelBtn.style.cssText = "background:#3a3a3e;border:1px solid #555;border-radius:4px;padding:6px 16px;color:#ccc;font-size:12px;cursor:pointer;";
-    cancelBtn.onmouseenter = () => cancelBtn.style.background = "#4a4a4e";
-    cancelBtn.onmouseleave = () => cancelBtn.style.background = "#3a3a3e";
-    cancelBtn.onclick = () => editOv.remove();
-
-    const saveBtn = document.createElement("button");
-    saveBtn.textContent = "保存";
-    saveBtn.style.cssText = "background:#4a6ab0;border:none;border-radius:4px;padding:6px 16px;color:#fff;font-size:12px;cursor:pointer;";
-    saveBtn.onmouseenter = () => saveBtn.style.background = "#5a7ac0";
-    saveBtn.onmouseleave = () => saveBtn.style.background = "#4a6ab0";
-
-    saveBtn.onclick = async () => {
-        const newWord = input.value.trim();
-
-        saveBtn.textContent = "保存中...";
-        saveBtn.disabled = true;
-        saveBtn.style.opacity = "0.6";
-
-        const result = await saveTriggerWordInPopup(loraName, newWord);
-        if (result.success) {
-            // 同步到工作流中的 LoRA 节点（空值则清空输入框）
-            syncTriggerWordToNode(loraName, newWord);
-            
-            const message = newWord ? result.message : "已删除触发词";
-            app.extensionManager.toast.add({
-                severity: "success", summary: "修改触发词", detail: message, life: 2000
-            });
-            editOv.remove();
-            parentOverlay.remove();
-            showPopup();
-        } else {
-            app.extensionManager.toast.add({
-                severity: "error", summary: "修改失败", detail: result.message, life: 3000
-            });
-            saveBtn.textContent = "保存";
-            saveBtn.disabled = false;
-            saveBtn.style.opacity = "1";
-        }
-    };
-
-    // 回车键保存
-    input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            saveBtn.click();
-        }
-    });
-
-    btnRow.appendChild(cancelBtn);
-    btnRow.appendChild(saveBtn);
-    body.appendChild(btnRow);
-    pop.appendChild(body);
-
-    editOv.appendChild(pop);
-    editOv.onclick = e => { if (e.target === editOv) editOv.remove(); };
-    document.body.appendChild(editOv);
-
-    // 自动聚焦输入框
-    setTimeout(() => {
-        input.focus();
-        input.select();
-    }, 100);
 }
 
 /**
@@ -254,7 +147,12 @@ async function showPopup() {
             editBtn.onmouseleave = () => editBtn.style.background = "#4a6ab0";
             editBtn.onclick = (e) => {
                 e.stopPropagation();
-                showEditDialog(item.lora_name, item.trigger_word, ov);
+                showEditTriggerWordDialog(item.lora_name, item.trigger_word, () => {
+                    // 保存成功后同步到工作流节点并刷新弹窗
+                    syncTriggerWordToNode(item.lora_name, item.trigger_word);
+                    ov.remove();
+                    showPopup();
+                });
             };
             r.appendChild(editBtn);
 
@@ -385,13 +283,6 @@ function syncTriggerWordToNode(loraName, triggerWord) {
             console.log(`[Comfyui-txtnode] 已同步触发词到节点 ${node.id}: ${loraName}`);
         }
     }
-}
-
-/**
- * 获取 LoRA 文件名的简短形式
- */
-function getShortName(name) {
-    return name.includes("\\") ? name.split("\\").pop() : name.includes("/") ? name.split("/").pop() : name;
 }
 
 /**

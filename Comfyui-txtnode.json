@@ -76,6 +76,22 @@
             "trigger_word": "触发词"
         }
     },
+    "LoRAPromptEncoder": {
+        "title": "LoRA提示词编码器",
+        "inputs": {
+            "model": "模型",
+            "clip": "CLIP",
+            "selected_loras": "已选LoRA",
+            "positive_prompt": "正面提示词",
+            "negative_prompt": "负面提示词"
+        },
+        "outputs": {
+            "MODEL": "模型",
+            "CLIP": "CLIP",
+            "CONDITIONING": "正面条件",
+            "NEGATIVE_CONDITIONING": "负面条件"
+        }
+    },
     "ResizeAndPadNode": {
         "title": "调整图像尺寸填充",
         "inputs": {
