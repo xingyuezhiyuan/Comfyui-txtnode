@@ -4,7 +4,7 @@ import base64
 import folder_paths
 from aiohttp import web
 from pathlib import Path
-from . import trigger_word_manager
+from .nodes import trigger_word_manager
 
 
 def setup_routes():
@@ -116,7 +116,12 @@ def setup_routes():
                         break
                 
                 if image_path:
-                    return web.FileResponse(image_path)
+                    headers = {
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                        "Pragma": "no-cache",
+                        "Expires": "0",
+                    }
+                    return web.FileResponse(image_path, headers=headers)
                 else:
                     return web.Response(status=404, text="Preview image not found")
 

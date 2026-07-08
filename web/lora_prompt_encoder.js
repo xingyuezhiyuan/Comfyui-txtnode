@@ -444,11 +444,10 @@ async function initNodeUI(node) {
 
         // 文件夹过滤
         if (state.currentFolder !== "全部（可按文件夹排列）") {
+            const prefix = state.currentFolder + "/";
             filtered = filtered.filter(name => {
-                if (state.currentFolder.includes("/")) {
-                    return name.startsWith(state.currentFolder + "/");
-                }
-                return name.includes(state.currentFolder);
+                const normalized = name.replace(/\\/g, "/");
+                return normalized.startsWith(prefix);
             });
         }
 
@@ -587,21 +586,9 @@ async function initNodeUI(node) {
         });
 
         img.onerror = () => {
-            // 加载失败时显示占位符
+            // 加载失败时隐藏图片，显示占位背景
             img.style.display = "none";
             card.style.background = "#3a3a3a";
-            const placeholder = el("div", {
-                style: {
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#666",
-                    fontSize: "10px",
-                },
-            }, ["NO IMG"]);
-            card.appendChild(placeholder);
         };
 
         card.appendChild(img);
@@ -656,7 +643,15 @@ async function initNodeUI(node) {
             e.preventDefault();
             e.stopPropagation();
             uploadLoraPreview(loraName, () => {
-                img.src = getThumbnailUrl(loraName) + "&_t=" + Date.now();
+                // 恢复显示（如果之前因加载失败被隐藏）
+                img.style.display = "";
+                card.style.background = "";
+                // 设置新 src 触发重新加载
+                img.src = getThumbnailUrl(loraName);
+                // 同步更新已选列表的缩略图
+                if (state.selectedLoras.has(loraName)) {
+                    renderSelectedList();
+                }
             });
         };
 
@@ -918,10 +913,10 @@ async function initNodeUI(node) {
                 e.preventDefault();
                 e.stopPropagation();
                 uploadLoraPreview(name, () => {
-                    // 上传成功后刷新缩略图
-                    thumb.src = getThumbnailUrl(name) + "&_t=" + Date.now();
-                    // 刷新列表以更新提示文字
+                    // 刷新已选列表以更新缩略图和提示文字
                     renderSelectedList();
+                    // 同步更新网格区域的缩略图
+                    renderGrid();
                 });
             };
 
