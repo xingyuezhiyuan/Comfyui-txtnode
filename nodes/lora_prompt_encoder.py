@@ -69,7 +69,6 @@ class LoRAPromptEncoder(io.ComfyNode):
             ],
             outputs=[
                 io.Model.Output("MODEL"),
-                io.Clip.Output("CLIP"),
                 io.Conditioning.Output("CONDITIONING"),
                 io.Conditioning.Output("NEGATIVE_CONDITIONING"),
             ],
@@ -97,17 +96,17 @@ class LoRAPromptEncoder(io.ComfyNode):
             import comfy.utils
             import comfy.model_management
 
-            # 合并提示词：端口输入 + DOM textarea 输入（并联）
-            def merge_prompts(port_value, dom_value):
+            # 合并提示词：DOM textarea 输入（触发词等）在前，端口输入在后
+            def merge_prompts(dom_value, port_value):
                 parts = []
-                if port_value and port_value.strip():
-                    parts.append(port_value.strip())
                 if dom_value and dom_value.strip():
                     parts.append(dom_value.strip())
+                if port_value and port_value.strip():
+                    parts.append(port_value.strip())
                 return ", ".join(parts) if parts else ""
 
-            positive_prompt = merge_prompts(positive_prompt, positive_prompt_dom)
-            negative_prompt = merge_prompts(negative_prompt, negative_prompt_dom)
+            positive_prompt = merge_prompts(positive_prompt_dom, positive_prompt)
+            negative_prompt = merge_prompts(negative_prompt_dom, negative_prompt)
 
             # 解析已选 LoRA 列表
             try:
@@ -117,7 +116,6 @@ class LoRAPromptEncoder(io.ComfyNode):
 
             # 循环加载并应用每个 LoRA
             current_model = model
-            current_clip = clip
 
             for lora_config in lora_configs:
                 lora_name = lora_config.get("name", "")
@@ -133,31 +131,27 @@ class LoRAPromptEncoder(io.ComfyNode):
                     # 加载 LoRA 模型
                     lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
 
-                    # 将 LoRA 应用到模型和 CLIP（strength_model 和 strength_clip 使用相同值）
-                    current_model, current_clip = comfy.sd.load_lora_for_models(
-                        current_model, current_clip, lora, strength, strength
+                    # 将 LoRA 应用到模型（仅调节模型强度，clip 强度固定为 1）
+                    current_model, _ = comfy.sd.load_lora_for_models(
+                        current_model, clip, lora, strength, 1
                     )
                 except Exception as e:
                     print(f"[LoRAPromptEncoder] 加载 LoRA '{lora_name}' 失败: {e}")
                     continue
 
-            # 编码正面提示词
-            if positive_prompt and positive_prompt.strip():
-                positive_conditioning = current_clip.encode_from_tokens_scheduled(current_clip.tokenize(positive_prompt))
-            else:
-                positive_conditioning = [[comfy.model_management.get_torch_device(), {}]]
+            # 编码正面提示词（始终通过 CLIP 编码，确保 SDXL 等模型所需的 pooled_output 等字段完整）
+            positive_tokens = clip.tokenize(positive_prompt if positive_prompt and positive_prompt.strip() else "")
+            positive_conditioning = clip.encode_from_tokens_scheduled(positive_tokens)
 
             # 编码负面提示词
-            if negative_prompt and negative_prompt.strip():
-                negative_conditioning = current_clip.encode_from_tokens_scheduled(current_clip.tokenize(negative_prompt))
-            else:
-                negative_conditioning = [[comfy.model_management.get_torch_device(), {}]]
+            negative_tokens = clip.tokenize(negative_prompt if negative_prompt and negative_prompt.strip() else "")
+            negative_conditioning = clip.encode_from_tokens_scheduled(negative_tokens)
 
-            return io.NodeOutput(current_model, current_clip, positive_conditioning, negative_conditioning)
+            return io.NodeOutput(current_model, positive_conditioning, negative_conditioning)
 
         except Exception as e:
             print(f"[LoRAPromptEncoder] 执行失败: {e}")
             # 失败时返回原始输入和空条件
             import comfy.model_management
             empty_cond = [[comfy.model_management.get_torch_device(), {}]]
-            return io.NodeOutput(model, clip, empty_cond, empty_cond)
+            return io.NodeOutput(model, empty_cond, empty_cond)
