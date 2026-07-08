@@ -145,11 +145,28 @@ app.registerExtension({
 });
 
 /**
+ * 隐藏指定的 widget（不占用 UI 空间）
+ */
+function hideWidget(node, widgetName) {
+    const widget = node.widgets?.find(w => w.name === widgetName);
+    if (widget && !widget._hidden) {
+        widget.hidden = true;
+        widget._hidden = true;
+        widget.computeSize = () => [0, -4];
+    }
+}
+
+/**
  * 初始化节点 UI
  */
 async function initNodeUI(node) {
     // 等待节点完全加载
     await new Promise(resolve => setTimeout(resolve, 100));
+
+    // 隐藏内部数据传递用的 widget（不显示在 UI 上）
+    hideWidget(node, "selected_loras");
+    hideWidget(node, "positive_prompt_dom");
+    hideWidget(node, "negative_prompt_dom");
 
     // 获取 LoRA 列表
     const loraList = await fetchLoraList();
