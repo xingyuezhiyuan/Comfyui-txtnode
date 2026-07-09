@@ -13,6 +13,7 @@ const MODEL_LOADER_NODES = {
     "LoraLoader": "loras",
     "LoraLoaderModelOnly": "loras",
     "LoRALoaderModelOnly": "loras",
+    "LoRALoaderFull": "loras",
     "UNETLoader": "unet",
     "UnetLoader": "unet",
     "DiffusionModelLoader": "unet",
