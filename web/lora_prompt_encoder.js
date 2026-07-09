@@ -1023,22 +1023,48 @@ async function initNodeUI(node) {
                 },
                 onInput: (e) => {
                     item.strength = parseFloat(e.target.value);
-                    strengthValue.textContent = item.strength.toFixed(2);
+                    strengthInput.value = item.strength.toFixed(2);
                     syncToWidget();
                 },
             });
             row.appendChild(strengthSlider);
 
-            // 强度数值
-            const strengthValue = el("span", {
+            // 强度输入框（与滑块双向同步）
+            const strengthInput = el("input", {
+                type: "number",
+                min: "0",
+                max: "1.5",
+                step: "0.01",
+                value: item.strength.toFixed(2),
                 style: {
+                    width: "48px",
                     fontSize: "11px",
-                    color: "#888",
-                    minWidth: "36px",
-                    textAlign: "right",
+                    color: "#ccc",
+                    background: "#333",
+                    border: "1px solid #555",
+                    borderRadius: "3px",
+                    textAlign: "center",
+                    padding: "1px 2px",
                 },
-            }, [item.strength.toFixed(2)]);
-            row.appendChild(strengthValue);
+                onInput: (e) => {
+                    let val = parseFloat(e.target.value);
+                    if (isNaN(val)) return;
+                    val = Math.max(0, Math.min(1.5, val));
+                    item.strength = val;
+                    strengthSlider.value = val.toString();
+                    syncToWidget();
+                },
+                onBlur: (e) => {
+                    let val = parseFloat(e.target.value);
+                    if (isNaN(val)) val = 1.0;
+                    val = Math.max(0, Math.min(1.5, val));
+                    item.strength = val;
+                    e.target.value = val.toFixed(2);
+                    strengthSlider.value = val.toString();
+                    syncToWidget();
+                },
+            });
+            row.appendChild(strengthInput);
 
             // 删除按钮
             const removeBtn = el("button", {
