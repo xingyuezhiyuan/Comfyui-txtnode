@@ -1,6 +1,7 @@
 import { app } from "../../../scripts/app.js";
 import { saveTriggerWord, getAllTriggerWords } from "./utils/trigger-word-api.js";
 import { showEditTriggerWordDialog, getShortName } from "./utils/lora-actions.js";
+import { showPreviewManager } from "./model_preview_manager.js";
 
 /**
  * 触发词选择器 — 为 CLIPTextEncode 节点添加触发词快捷按钮
