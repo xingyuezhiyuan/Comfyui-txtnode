@@ -1014,7 +1014,7 @@ async function initNodeUI(node) {
             const strengthSlider = el("input", {
                 type: "range",
                 min: "0",
-                max: "1.5",
+                max: "4",
                 step: "0.01",
                 value: item.strength.toString(),
                 style: {
@@ -1033,7 +1033,7 @@ async function initNodeUI(node) {
             const strengthInput = el("input", {
                 type: "number",
                 min: "0",
-                max: "1.5",
+                max: "4",
                 step: "0.01",
                 value: item.strength.toFixed(2),
                 style: {
@@ -1049,7 +1049,7 @@ async function initNodeUI(node) {
                 onInput: (e) => {
                     let val = parseFloat(e.target.value);
                     if (isNaN(val)) return;
-                    val = Math.max(0, Math.min(1.5, val));
+                    val = Math.max(0, Math.min(4, val));
                     item.strength = val;
                     strengthSlider.value = val.toString();
                     syncToWidget();
@@ -1057,7 +1057,7 @@ async function initNodeUI(node) {
                 onBlur: (e) => {
                     let val = parseFloat(e.target.value);
                     if (isNaN(val)) val = 1.0;
-                    val = Math.max(0, Math.min(1.5, val));
+                    val = Math.max(0, Math.min(4, val));
                     item.strength = val;
                     e.target.value = val.toFixed(2);
                     strengthSlider.value = val.toString();
