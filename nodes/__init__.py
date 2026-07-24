@@ -5,6 +5,7 @@ from .resize_pad import ResizeAndPadNode, RemovePadFromImageNode
 from .lora_loader_node import LoRALoaderModelOnly
 from .lora_loader_full_node import LoRALoaderFull
 from .lora_prompt_encoder import LoRAPromptEncoder
+from .ps_bridge import GetImageFromPS, SendImageToPS
 
 __all__ = [
     "SaveStringToTextNode",
@@ -15,4 +16,6 @@ __all__ = [
     "LoRALoaderModelOnly",
     "LoRALoaderFull",
     "LoRAPromptEncoder",
+    "GetImageFromPS",
+    "SendImageToPS",
 ]

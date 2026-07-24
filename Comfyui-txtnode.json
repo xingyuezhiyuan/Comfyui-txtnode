@@ -120,5 +120,22 @@
         "outputs": {
             "output_image": "输出图像"
         }
+    },
+    "GetImageFromPS": {
+        "title": "从PS获取图像",
+        "inputs": {
+            "image_filename": "画布文件名",
+            "mask_filename": "遮罩文件名"
+        },
+        "outputs": {
+            "image": "图像",
+            "mask": "遮罩"
+        }
+    },
+    "SendImageToPS": {
+        "title": "发送图像到PS",
+        "inputs": {
+            "images": "图像"
+        }
     }
 }
