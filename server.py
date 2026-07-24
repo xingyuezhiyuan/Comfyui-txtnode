@@ -77,6 +77,180 @@ def setup_routes():
                     status=500
                 )
 
+        # ========== 工作流同步 API ==========
+        # 内存中暂存当前工作流（仅供 UXP 插件通过 HTTP 拉取）
+        _current_workflow = {}
+
+        @prompt_server.routes.post("/comfyui-txtnode/save_workflow")
+        async def save_workflow(request):
+            """保存当前 ComfyUI 工作流 JSON（API 格式）
+
+            ComfyUI 前端每次工作流变更时自动调用此 API，
+            将当前工作流同步到后端内存中，供 UXP 插件拉取。
+            """
+            try:
+                data = await request.json()
+                workflow = data.get("workflow")
+                if not workflow:
+                    return web.json_response(
+                        {"error": "缺少 workflow 参数"},
+                        status=400
+                    )
+
+                nonlocal _current_workflow
+                _current_workflow = workflow
+                node_count = len(workflow) if isinstance(workflow, dict) else 0
+                print(f"[Comfyui-txtnode] 工作流已同步，共 {node_count} 个节点")
+
+                return web.json_response({
+                    "success": True,
+                    "node_count": node_count
+                })
+
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 保存工作流失败: {e}")
+                return web.json_response(
+                    {"error": str(e)},
+                    status=500
+                )
+
+        @prompt_server.routes.get("/comfyui-txtnode/get_workflow")
+        async def get_workflow(request):
+            """获取当前保存的工作流 JSON（API 格式）
+
+            UXP 插件在"运行"前调用此 API 获取最新工作流，
+            用于扫描自定义节点并替换文件名参数。
+            """
+            try:
+                nonlocal _current_workflow
+                if not _current_workflow:
+                    return web.json_response(
+                        {"error": "暂无工作流，请先在 ComfyUI 中打开或修改工作流"},
+                        status=404
+                    )
+
+                node_count = len(_current_workflow) if isinstance(_current_workflow, dict) else 0
+                return web.json_response({
+                    "workflow": _current_workflow,
+                    "node_count": node_count
+                })
+
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 获取工作流失败: {e}")
+                return web.json_response(
+                    {"error": str(e)},
+                    status=500
+                )
+
+        # ========== WebSocket 推送（向 UXP 插件推送渲染结果） ==========
+        _txtnode_ps_clients = []  # {ws, clientId, ip}
+
+        @prompt_server.routes.get("/txtnode/ws")
+        async def txtnode_ws_handler(request):
+            """WebSocket 端点 — UXP 插件持久连接。
+
+            UXP 插件在面板加载时连接到此端点，
+            后端通过此连接向 UXP 推送 render 消息（文件路径通知）。
+            查询参数:
+                platform: 客户端平台标识（"ps" = Photoshop UXP）
+                clientId: 客户端唯一标识
+            """
+            ws = web.WebSocketResponse()
+            await ws.prepare(request)
+
+            client_id = request.query.get("clientId", "")
+            platform = request.query.get("platform", "unknown")
+            client_ip = request.remote
+
+            nonlocal _txtnode_ps_clients
+
+            if platform == "ps":
+                client_info = {
+                    "ws": ws,
+                    "clientId": client_id,
+                    "ip": client_ip
+                }
+                _txtnode_ps_clients.append(client_info)
+                print(f"[Comfyui-txtnode] PS 客户端已连接: {client_id} ({client_ip}), 当前共 {len(_txtnode_ps_clients)} 个")
+
+            try:
+                async for msg in ws:
+                    # 目前 UXP 端不主动发消息，保留扩展空间
+                    if msg.type == web.WSMsgType.ERROR:
+                        print(f"[Comfyui-txtnode] WebSocket 错误: {ws.exception()}")
+            finally:
+                # 断开时清理
+                _txtnode_ps_clients = [
+                    c for c in _txtnode_ps_clients
+                    if c["clientId"] != client_id
+                ]
+                print(f"[Comfyui-txtnode] PS 客户端已断开: {client_id}, 剩余 {len(_txtnode_ps_clients)} 个")
+
+            return ws
+
+        async def _broadcast_to_ps(message):
+            """向所有已连接的 PS 客户端广播 JSON 消息。"""
+            nonlocal _txtnode_ps_clients
+            disconnected = []
+            for client in _txtnode_ps_clients:
+                try:
+                    await client["ws"].send_json(message)
+                except Exception as e:
+                    print(f"[Comfyui-txtnode] 广播失败 {client['clientId']}: {e}")
+                    disconnected.append(client)
+            # 清理已断开的客户端
+            for dc in disconnected:
+                if dc in _txtnode_ps_clients:
+                    _txtnode_ps_clients.remove(dc)
+
+        @prompt_server.routes.post("/txtnode/notify_render")
+        async def notify_render(request):
+            """内部 API — SendImageToPS 节点执行后调用。
+
+            接收 Base64 PNG 图像数组，通过 WebSocket 直接广播给所有已连接的 PS 客户端。
+            PS 插件收到后直接显示，无需再通过 HTTP 下载。
+
+            参考 comfyui-photoshop: Backend.py /ps/render 路由 → send_message → WebSocket
+
+            Body: {"images": ["base64...", ...], "multi": true/false}
+            """
+            try:
+                data = await request.json()
+                images = data.get("images", [])
+
+                if not images:
+                    return web.json_response(
+                        {"error": "缺少 images 参数"},
+                        status=400
+                    )
+
+                is_multi = data.get("multi", len(images) > 1)
+
+                # 广播给所有 PS 客户端（与 comfyui-photoshop 协议对齐）
+                if is_multi and len(images) > 1:
+                    await _broadcast_to_ps({
+                        "type": "renders",
+                        "images": images
+                    })
+                else:
+                    await _broadcast_to_ps({
+                        "type": "render",
+                        "images": images
+                    })
+
+                print(f"[Comfyui-txtnode] 渲染通知已广播: {len(images)} 张图像（Base64）")
+                return web.json_response({
+                    "success": True,
+                    "client_count": len(_txtnode_ps_clients)
+                })
+
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 渲染通知失败: {e}")
+                return web.json_response(
+                    {"error": str(e)},
+                    status=500
+                )
+
         print("[Comfyui-txtnode] API 路由注册成功")
 
         # ========== 模型预览图 API ==========
