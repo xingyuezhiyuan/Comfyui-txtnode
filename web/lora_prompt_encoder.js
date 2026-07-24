@@ -192,6 +192,10 @@ async function initNodeUI(node) {
         try {
             const saved = JSON.parse(selectedLorasWidget.value);
             for (const item of saved) {
+                // 兼容旧数据：没有 enabled 字段时默认为 true
+                if (item.enabled === undefined) {
+                    item.enabled = true;
+                }
                 state.selectedLoras.set(item.name, item);
             }
         } catch (e) {
@@ -753,7 +757,7 @@ async function initNodeUI(node) {
             removeLoraFromPrompt(loraName);
         } else {
             // 选中
-            const newItem = { name: loraName, strength: 1.0 };
+            const newItem = { name: loraName, strength: 1.0, enabled: true };
             state.selectedLoras.set(loraName, newItem);
             // 添加触发词和 LoRA 标签
             await addLoraToPrompt(loraName);
@@ -833,6 +837,7 @@ async function initNodeUI(node) {
         for (const [name, item] of state.selectedLoras) {
             const shortName = getShortName(name);
             const thumbnailUrl = getThumbnailUrl(name);
+            const isEnabled = item.enabled !== false;
 
             const row = el("div", {
                 style: {
@@ -842,8 +847,45 @@ async function initNodeUI(node) {
                     padding: "6px",
                     background: "#2a2a2a",
                     borderRadius: "4px",
+                    opacity: isEnabled ? "1" : "0.45",
+                    transition: "opacity 0.2s",
                 },
             });
+
+            // 启用/禁用 Toggle 滑动开关
+            const toggleTrack = el("div", {
+                style: {
+                    width: "26px",
+                    height: "14px",
+                    borderRadius: "7px",
+                    background: isEnabled ? "#666" : "#444",
+                    position: "relative",
+                    cursor: "pointer",
+                    flexShrink: "0",
+                    transition: "background 0.2s",
+                },
+                title: isEnabled ? "点击禁用此 LoRA" : "点击启用此 LoRA",
+                onClick: (e) => {
+                    e.stopPropagation();
+                    item.enabled = !item.enabled;
+                    renderSelectedList();
+                    syncToWidget();
+                },
+            });
+            const toggleThumb = el("div", {
+                style: {
+                    width: "10px",
+                    height: "10px",
+                    borderRadius: "50%",
+                    background: "#ccc",
+                    position: "absolute",
+                    top: "2px",
+                    left: isEnabled ? "14px" : "2px",
+                    transition: "left 0.2s",
+                },
+            });
+            toggleTrack.appendChild(toggleThumb);
+            row.appendChild(toggleTrack);
 
             // 缩略图
             const thumb = el("img", {
@@ -1017,9 +1059,10 @@ async function initNodeUI(node) {
                 max: "4",
                 step: "0.01",
                 value: item.strength.toString(),
+                disabled: !isEnabled,
                 style: {
                     width: "80px",
-                    cursor: "pointer",
+                    cursor: isEnabled ? "pointer" : "not-allowed",
                 },
                 onInput: (e) => {
                     item.strength = parseFloat(e.target.value);
@@ -1029,22 +1072,64 @@ async function initNodeUI(node) {
             });
             row.appendChild(strengthSlider);
 
-            // 强度输入框（与滑块双向同步）
-            const strengthInput = el("input", {
-                type: "number",
-                min: "0",
-                max: "4",
-                step: "0.01",
-                value: item.strength.toFixed(2),
+            // 强度输入框（左右箭头 + 中间输入框）
+            const strengthGroup = el("div", {
                 style: {
-                    width: "48px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0",
+                    flexShrink: "0",
+                },
+            });
+
+            // 左箭头（减小）
+            const decreaseBtn = el("button", {
+                style: {
+                    width: "18px",
+                    height: "20px",
+                    background: isEnabled ? "#3a3a3a" : "#2a2a2a",
+                    border: isEnabled ? "1px solid #555" : "1px solid #3a3a3a",
+                    borderRight: "none",
+                    borderRadius: "3px 0 0 3px",
+                    color: isEnabled ? "#ccc" : "#666",
+                    fontSize: "10px",
+                    cursor: isEnabled ? "pointer" : "not-allowed",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0",
+                },
+                disabled: !isEnabled,
+                onClick: (e) => {
+                    e.stopPropagation();
+                    if (!isEnabled) return;
+                    item.strength = Math.max(0, +(item.strength - 0.01).toFixed(2));
+                    strengthInput.value = item.strength.toFixed(2);
+                    strengthSlider.value = item.strength.toString();
+                    syncToWidget();
+                },
+            }, ["◀"]);
+            decreaseBtn.onmouseenter = () => { if (isEnabled) decreaseBtn.style.background = "#4a4a4a"; };
+            decreaseBtn.onmouseleave = () => { if (isEnabled) decreaseBtn.style.background = "#3a3a3a"; };
+            strengthGroup.appendChild(decreaseBtn);
+
+            // 中间输入框
+            const strengthInput = el("input", {
+                type: "text",
+                inputMode: "decimal",
+                value: item.strength.toFixed(2),
+                disabled: !isEnabled,
+                style: {
+                    width: "36px",
+                    height: "20px",
                     fontSize: "11px",
-                    color: "#ccc",
-                    background: "#333",
-                    border: "1px solid #555",
-                    borderRadius: "3px",
+                    color: isEnabled ? "#ccc" : "#666",
+                    background: isEnabled ? "#333" : "#2a2a2a",
+                    border: isEnabled ? "1px solid #555" : "1px solid #3a3a3a",
+                    borderRadius: "0",
                     textAlign: "center",
-                    padding: "1px 2px",
+                    padding: "0 2px",
+                    outline: "none",
                 },
                 onInput: (e) => {
                     let val = parseFloat(e.target.value);
@@ -1064,7 +1149,40 @@ async function initNodeUI(node) {
                     syncToWidget();
                 },
             });
-            row.appendChild(strengthInput);
+            strengthGroup.appendChild(strengthInput);
+
+            // 右箭头（增大）
+            const increaseBtn = el("button", {
+                style: {
+                    width: "18px",
+                    height: "20px",
+                    background: isEnabled ? "#3a3a3a" : "#2a2a2a",
+                    border: isEnabled ? "1px solid #555" : "1px solid #3a3a3a",
+                    borderLeft: "none",
+                    borderRadius: "0 3px 3px 0",
+                    color: isEnabled ? "#ccc" : "#666",
+                    fontSize: "10px",
+                    cursor: isEnabled ? "pointer" : "not-allowed",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0",
+                },
+                disabled: !isEnabled,
+                onClick: (e) => {
+                    e.stopPropagation();
+                    if (!isEnabled) return;
+                    item.strength = Math.min(4, +(item.strength + 0.01).toFixed(2));
+                    strengthInput.value = item.strength.toFixed(2);
+                    strengthSlider.value = item.strength.toString();
+                    syncToWidget();
+                },
+            }, ["▶"]);
+            increaseBtn.onmouseenter = () => { if (isEnabled) increaseBtn.style.background = "#4a4a4a"; };
+            increaseBtn.onmouseleave = () => { if (isEnabled) increaseBtn.style.background = "#3a3a3a"; };
+            strengthGroup.appendChild(increaseBtn);
+
+            row.appendChild(strengthGroup);
 
             // 删除按钮
             const removeBtn = el("button", {

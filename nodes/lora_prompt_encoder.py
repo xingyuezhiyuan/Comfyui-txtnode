@@ -114,14 +114,15 @@ class LoRAPromptEncoder(io.ComfyNode):
             except json.JSONDecodeError:
                 lora_configs = []
 
-            # 循环加载并应用每个 LoRA
+            # 循环加载并应用每个 LoRA（跳过被禁用的）
             current_model = model
 
             for lora_config in lora_configs:
                 lora_name = lora_config.get("name", "")
                 strength = lora_config.get("strength", 1.0)
+                enabled = lora_config.get("enabled", True)
 
-                if not lora_name:
+                if not lora_name or not enabled:
                     continue
 
                 try:
