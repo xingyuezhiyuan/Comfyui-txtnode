@@ -1055,9 +1055,9 @@ async function initNodeUI(node) {
             // 强度滑块
             const strengthSlider = el("input", {
                 type: "range",
-                min: "0",
+                min: "-3",
                 max: "4",
-                step: "0.01",
+                step: "0.1",
                 value: item.strength.toString(),
                 disabled: !isEnabled,
                 style: {
@@ -1103,7 +1103,7 @@ async function initNodeUI(node) {
                 onClick: (e) => {
                     e.stopPropagation();
                     if (!isEnabled) return;
-                    item.strength = Math.max(0, +(item.strength - 0.01).toFixed(2));
+                    item.strength = Math.max(-3, +(item.strength - 0.5).toFixed(2));
                     strengthInput.value = item.strength.toFixed(2);
                     strengthSlider.value = item.strength.toString();
                     syncToWidget();
@@ -1134,7 +1134,7 @@ async function initNodeUI(node) {
                 onInput: (e) => {
                     let val = parseFloat(e.target.value);
                     if (isNaN(val)) return;
-                    val = Math.max(0, Math.min(4, val));
+                    val = Math.max(-3, Math.min(4, val));
                     item.strength = val;
                     strengthSlider.value = val.toString();
                     syncToWidget();
@@ -1142,7 +1142,7 @@ async function initNodeUI(node) {
                 onBlur: (e) => {
                     let val = parseFloat(e.target.value);
                     if (isNaN(val)) val = 1.0;
-                    val = Math.max(0, Math.min(4, val));
+                    val = Math.max(-3, Math.min(4, val));
                     item.strength = val;
                     e.target.value = val.toFixed(2);
                     strengthSlider.value = val.toString();
@@ -1172,7 +1172,7 @@ async function initNodeUI(node) {
                 onClick: (e) => {
                     e.stopPropagation();
                     if (!isEnabled) return;
-                    item.strength = Math.min(4, +(item.strength + 0.01).toFixed(2));
+                    item.strength = Math.min(4, +(item.strength + 0.5).toFixed(2));
                     strengthInput.value = item.strength.toFixed(2);
                     strengthSlider.value = item.strength.toString();
                     syncToWidget();
