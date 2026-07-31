@@ -167,6 +167,9 @@ async function initNodeUI(node) {
     hideWidget(node, "selected_loras");
     hideWidget(node, "positive_prompt_dom");
     hideWidget(node, "negative_prompt_dom");
+    hideWidget(node, "filter_folder");
+    hideWidget(node, "page_size");
+    hideWidget(node, "current_page");
 
     // 获取 LoRA 列表
     const loraList = await fetchLoraList();
@@ -200,6 +203,26 @@ async function initNodeUI(node) {
             }
         } catch (e) {
             console.error("[LoRAPromptEncoder] 解析已选 LoRA 失败:", e);
+        }
+    }
+
+    // 恢复筛选/分页状态（从 widget 恢复）
+    const filterFolderWidget = node.widgets?.find(w => w.name === "filter_folder");
+    if (filterFolderWidget?.value) {
+        state.currentFolder = filterFolderWidget.value;
+    }
+    const pageSizeWidget = node.widgets?.find(w => w.name === "page_size");
+    if (pageSizeWidget?.value) {
+        const savedPageSize = parseInt(pageSizeWidget.value);
+        if (!isNaN(savedPageSize) && PAGE_SIZES.includes(savedPageSize)) {
+            state.pageSize = savedPageSize;
+        }
+    }
+    const currentPageWidget = node.widgets?.find(w => w.name === "current_page");
+    if (currentPageWidget?.value) {
+        const savedPage = parseInt(currentPageWidget.value);
+        if (!isNaN(savedPage) && savedPage >= 0) {
+            state.currentPage = savedPage;
         }
     }
 
@@ -352,6 +375,7 @@ async function initNodeUI(node) {
             state.searchQuery = e.target.value.toLowerCase();
             state.currentPage = 0;
             renderGrid();
+            syncToWidget();
         },
     });
     rightPanel.appendChild(searchInput);
@@ -382,6 +406,7 @@ async function initNodeUI(node) {
             state.currentFolder = e.target.value;
             state.currentPage = 0;
             renderGrid();
+            syncToWidget();
         },
     });
 
@@ -389,6 +414,8 @@ async function initNodeUI(node) {
         const option = el("option", { value: folder }, [folder]);
         folderSelect.appendChild(option);
     }
+    // 恢复上次选择的文件夹
+    folderSelect.value = state.currentFolder;
     controlBar.appendChild(folderSelect);
 
     // 分页选择
@@ -406,15 +433,17 @@ async function initNodeUI(node) {
             state.pageSize = parseInt(e.target.value);
             state.currentPage = 0;
             renderGrid();
+            syncToWidget();
         },
     });
 
     for (const size of PAGE_SIZES) {
         const label = size === 0 ? "全部" : `${size}个/页`;
         const option = el("option", { value: size }, [label]);
-        if (size === DEFAULT_PAGE_SIZE) option.selected = true;
         pageSelect.appendChild(option);
     }
+    // 恢复上次的每页数量
+    pageSelect.value = state.pageSize.toString();
     controlBar.appendChild(pageSelect);
 
     rightPanel.appendChild(controlBar);
@@ -528,6 +557,7 @@ async function initNodeUI(node) {
                     if (state.currentPage > 0) {
                         state.currentPage--;
                         renderGrid();
+                        syncToWidget();
                     }
                 },
             }, ["上一页"]);
@@ -558,6 +588,7 @@ async function initNodeUI(node) {
                     if (state.currentPage < totalPages - 1) {
                         state.currentPage++;
                         renderGrid();
+                        syncToWidget();
                     }
                 },
             }, ["下一页"]);
@@ -1103,7 +1134,7 @@ async function initNodeUI(node) {
                 onClick: (e) => {
                     e.stopPropagation();
                     if (!isEnabled) return;
-                    item.strength = Math.max(-3, +(item.strength - 0.5).toFixed(2));
+                    item.strength = Math.max(-3, +(item.strength - 0.05).toFixed(2));
                     strengthInput.value = item.strength.toFixed(2);
                     strengthSlider.value = item.strength.toString();
                     syncToWidget();
@@ -1172,7 +1203,7 @@ async function initNodeUI(node) {
                 onClick: (e) => {
                     e.stopPropagation();
                     if (!isEnabled) return;
-                    item.strength = Math.min(4, +(item.strength + 0.5).toFixed(2));
+                    item.strength = Math.min(4, +(item.strength + 0.05).toFixed(2));
                     strengthInput.value = item.strength.toFixed(2);
                     strengthSlider.value = item.strength.toString();
                     syncToWidget();
@@ -1229,6 +1260,23 @@ async function initNodeUI(node) {
         if (negativeDomWidget) {
             negativeDomWidget.value = state.negativePrompt;
             negativeDomWidget.callback?.(state.negativePrompt);
+        }
+
+        // 同步筛选/分页状态到隐藏 widget
+        const filterFolderWidget = node.widgets?.find(w => w.name === "filter_folder");
+        if (filterFolderWidget) {
+            filterFolderWidget.value = state.currentFolder;
+            filterFolderWidget.callback?.(state.currentFolder);
+        }
+        const pageSizeWidget = node.widgets?.find(w => w.name === "page_size");
+        if (pageSizeWidget) {
+            pageSizeWidget.value = state.pageSize.toString();
+            pageSizeWidget.callback?.(state.pageSize.toString());
+        }
+        const currentPageWidget = node.widgets?.find(w => w.name === "current_page");
+        if (currentPageWidget) {
+            currentPageWidget.value = state.currentPage.toString();
+            currentPageWidget.callback?.(state.currentPage.toString());
         }
     }
 
