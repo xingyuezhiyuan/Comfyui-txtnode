@@ -52,6 +52,30 @@ class LoRAPromptEncoder(io.ComfyNode):
                     socketless=True,
                     extra_dict={"hidden": True},
                 ),
+                # 隐藏 widget：存储当前筛选文件夹
+                io.String.Input(
+                    "filter_folder",
+                    default="全部（可按文件夹排列）",
+                    optional=True,
+                    socketless=True,
+                    extra_dict={"hidden": True},
+                ),
+                # 隐藏 widget：存储每页显示数量
+                io.String.Input(
+                    "page_size",
+                    default="50",
+                    optional=True,
+                    socketless=True,
+                    extra_dict={"hidden": True},
+                ),
+                # 隐藏 widget：存储当前页码
+                io.String.Input(
+                    "current_page",
+                    default="0",
+                    optional=True,
+                    socketless=True,
+                    extra_dict={"hidden": True},
+                ),
                 # 正面提示词输入端口（可接文本节点）
                 io.String.Input(
                     "positive_prompt",
@@ -76,7 +100,8 @@ class LoRAPromptEncoder(io.ComfyNode):
 
     @classmethod
     def execute(cls, model, clip, selected_loras="[]", positive_prompt="", negative_prompt="",
-                positive_prompt_dom="", negative_prompt_dom="", **kwargs):
+                positive_prompt_dom="", negative_prompt_dom="",
+                filter_folder="全部（可按文件夹排列）", page_size="50", current_page="0", **kwargs):
         """加载多个 LoRA 并编码提示词
 
         Args:
@@ -87,6 +112,9 @@ class LoRAPromptEncoder(io.ComfyNode):
             negative_prompt: 负面提示词（来自输入端口）
             positive_prompt_dom: 正面提示词（来自 DOM textarea）
             negative_prompt_dom: 负面提示词（来自 DOM textarea）
+            filter_folder: 当前筛选文件夹（UI 状态，不参与计算）
+            page_size: 每页显示数量（UI 状态，不参与计算）
+            current_page: 当前页码（UI 状态，不参与计算）
 
         Returns:
             NodeOutput: (加载后的模型, 加载后的CLIP, 正面条件, 负面条件)
