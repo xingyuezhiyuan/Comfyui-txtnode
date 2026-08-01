@@ -241,6 +241,7 @@ async function initNodeUI(node) {
             fontFamily: "Arial, sans-serif",
             fontSize: "12px",
             color: "#e0e0e0",
+            pointerEvents: "none",
         },
     });
 
@@ -253,6 +254,7 @@ async function initNodeUI(node) {
             flexDirection: "column",
             gap: "8px",
             overflow: "auto",
+            pointerEvents: "auto",
         },
     });
 
@@ -352,6 +354,7 @@ async function initNodeUI(node) {
             display: "flex",
             flexDirection: "column",
             overflow: "auto",
+            pointerEvents: "auto",
         },
     });
 
@@ -626,6 +629,7 @@ async function initNodeUI(node) {
             },
             onClick: () => toggleLora(loraName),
         });
+        card.dataset.noForward = "true";
 
         // 缩略图
         const img = el("img", {
@@ -903,6 +907,7 @@ async function initNodeUI(node) {
                     syncToWidget();
                 },
             });
+            toggleTrack.dataset.noForward = "true";
             const toggleThumb = el("div", {
                 style: {
                     width: "10px",
@@ -973,6 +978,7 @@ async function initNodeUI(node) {
                 },
                 title: "左键修改触发词，右键修改缩略图",
             });
+            actionBtn.dataset.noForward = "true";
             actionBtn.onmouseenter = () => {
                 actionBtn.style.background = "rgba(74,106,176,0.7)";
                 actionBtn.style.borderColor = "rgba(102,170,255,0.7)";
@@ -1280,8 +1286,65 @@ async function initNodeUI(node) {
         }
     }
 
+    // 转发指针事件到 canvas，让 ComfyUI 处理画布拖拽
+    // 当用户在非交互区域按下鼠标时，转发到 canvas 并建立事件中继
+    let relayActive = false;
+    let relayMove = null;
+    let relayUp = null;
+
+    function removeRelay() {
+        if (!relayActive) return;
+        relayActive = false;
+        if (relayMove) document.removeEventListener("pointermove", relayMove, true);
+        if (relayUp) document.removeEventListener("pointerup", relayUp, true);
+        relayMove = null;
+        relayUp = null;
+    }
+
+    function forwardToCanvas(e) {
+        const canvasEl = app.canvas?.canvas;
+        if (!canvasEl) return;
+        canvasEl.dispatchEvent(new PointerEvent(e.type, {
+            bubbles: true, cancelable: true, composed: true,
+            clientX: e.clientX, clientY: e.clientY,
+            button: e.button, buttons: e.buttons,
+            ctrlKey: e.ctrlKey, shiftKey: e.shiftKey,
+            altKey: e.altKey, metaKey: e.metaKey,
+            pointerId: e.pointerId, pointerType: e.pointerType,
+            isPrimary: e.isPrimary,
+        }));
+    }
+
+    container.addEventListener("pointerdown", (e) => {
+        const target = e.target;
+        const tag = target.tagName;
+        // 交互元素自行处理，不转发
+        if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") return;
+        if (target.isContentEditable) return;
+
+        // 检查目标或其祖先是否标记为不转发（有点击行为的 div 元素）
+        let el = target;
+        while (el && el !== container) {
+            if (el.dataset?.noForward) return;
+            el = el.parentElement;
+        }
+
+        // 非交互区域：转发到 canvas 并建立事件中继
+        forwardToCanvas(e);
+        e.preventDefault();
+        e.stopPropagation();
+
+        // 建立中继，转发后续 pointermove/pointerup 到 canvas
+        removeRelay();
+        relayActive = true;
+        relayMove = (ev) => forwardToCanvas(ev);
+        relayUp = (ev) => { forwardToCanvas(ev); removeRelay(); };
+        document.addEventListener("pointermove", relayMove, true);
+        document.addEventListener("pointerup", relayUp, true);
+    }, true);
+
     // 转发 wheel 事件到 canvas，让 ComfyUI 处理画布缩放
-    // 仅当目标元素实际可滚动时才保留元素自身的滚动行为
+    // 仅当目标元素实际可滚动时才保留元素自身的滚动功能
     container.addEventListener("wheel", (e) => {
         const target = e.target;
         let isScrollable = false;
