@@ -19,6 +19,9 @@ import base64
 # 文件哈希缓存（用于 IS_CHANGED 变更检测）
 _file_hashes = {}
 
+# Base64 缓存（供 UXP 端 HTTP 回退拉取，每次 SendImageToPS 执行时覆盖）
+_base64_cache = {}  # {filename: base64_string}
+
 # 固定文件名
 CANVAS_FILENAME = "xyps_canvas.png"
 MASK_FILENAME = "xyps_mask.png"
@@ -160,12 +163,15 @@ def save_images_to_output(images):
 
     Args:
         images: torch.Tensor, 形状为 [B, H, W, C]，值域 [0, 1]
+
+    Returns:
+        list[str]: 保存的文件名列表
     """
     output_dir = folder_paths.get_output_directory()
     print(f"[save_images_to_output] 输出目录: {output_dir}")
 
     pil_images = tensor_to_pil(images)
-    saved_count = 0
+    saved_files = []
     for i, pil_img in enumerate(pil_images):
         # 确保为 RGB 或 RGBA 模式
         if pil_img.mode not in ("RGB", "RGBA"):
@@ -174,8 +180,9 @@ def save_images_to_output(images):
         file_path = os.path.join(output_dir, file_name)
         pil_img.save(file_path, format="PNG")
         print(f"[save_images_to_output] 已保存: {file_path}")
-        saved_count += 1
-    print(f"[save_images_to_output] 保存完毕，共 {saved_count} 张图像")
+        saved_files.append(file_name)
+    print(f"[save_images_to_output] 保存完毕，共 {len(saved_files)} 张图像")
+    return saved_files
 
 
 def tensor_to_base64(tensor):
@@ -197,28 +204,23 @@ def tensor_to_base64(tensor):
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def _notify_uxp_clients(images_tensor):
-    """通过内部 HTTP 将渲染结果（Base64 PNG）推送到 Comfyui-txtnode 后端。
+def _notify_uxp_clients(saved_filenames):
+    """通过内部 HTTP 通知 Comfyui-txtnode 后端，后端再通过 WebSocket 广播轻量通知。
 
-    后端收到后通过 WebSocket 直接广播 Base64 图像数据给所有已连接的 UXP 客户端。
-    PS 插件收到后直接显示，无需再通过 HTTP 下载。
-
-    参考 comfyui-photoshop: Backend.py /ps/render 路由 + send_message → WebSocket
+    UXP 插件收到通知后主动通过 HTTP GET /view 下载图片，
+    仅在 HTTP 下载失败时才回退到 /txtnode/get_image_base64 拉取 Base64 数据。
 
     Args:
-        images_tensor: torch.Tensor, 形状为 [B, H, W, C]，值域 [0, 1]
+        saved_filenames: list[str], 已保存的文件名列表
     """
     import urllib.request
     import json as _json
 
-    batch_size = min(images_tensor.shape[0], 4)  # 最多发送 4 张
-    images_base64 = []
-    for i in range(batch_size):
-        images_base64.append(tensor_to_base64(images_tensor[i]))
+    if not saved_filenames:
+        return
 
     data = _json.dumps({
-        "images": images_base64,
-        "multi": batch_size > 1,
+        "filenames": saved_filenames,
     }).encode("utf-8")
     try:
         req = urllib.request.Request(
@@ -227,7 +229,7 @@ def _notify_uxp_clients(images_tensor):
             headers={"Content-Type": "application/json"}
         )
         urllib.request.urlopen(req, timeout=5)
-        print(f"[SendImageToPS] 已通知 UXP 客户端，共 {batch_size} 张图像（Base64）")
+        print(f"[SendImageToPS] 已通知 UXP 客户端，共 {len(saved_filenames)} 个文件（轻量通知）")
     except Exception as e:
         print(f"[SendImageToPS] 通知 UXP 客户端失败（可能无客户端连接）: {e}")
 
@@ -373,7 +375,12 @@ class SendImageToPS(io.ComfyNode):
 
     @classmethod
     def execute(cls, images):
-        """执行节点：保存图像到输出目录并通知 UXP 客户端。
+        """执行节点：保存图像到输出目录，缓存 Base64 数据，并通知 UXP 客户端。
+
+        流程：
+        1. 保存 PNG 到 output/ 目录（供 HTTP GET /view 下载）
+        2. 将 Base64 数据缓存到内存（供 HTTP 下载失败时回退拉取）
+        3. 通过 WebSocket 推送轻量通知（仅包含文件名）
 
         Args:
             images: torch.Tensor, 形状为 [B, H, W, C]，值域 [0, 1]
@@ -381,11 +388,20 @@ class SendImageToPS(io.ComfyNode):
         print(f"[SendImageToPS] ====== 开始执行 ======")
         print(f"[SendImageToPS] images 张量形状: {images.shape}")
 
-        # 手动保存图像到 output 目录
-        save_images_to_output(images)
+        # 1. 保存图像到 output 目录
+        saved_filenames = save_images_to_output(images)
 
-        # 通过 HTTP → WebSocket 推送 Base64 图像到 UXP 客户端（PS 插件）
-        _notify_uxp_clients(images)
+        # 2. 缓存 Base64 数据（覆盖旧缓存，供 UXP 端 HTTP 回退拉取）
+        global _base64_cache
+        _base64_cache = {}
+        batch_size = min(images.shape[0], 4)
+        for i in range(batch_size):
+            filename = f"SendImageToPS_{i:05d}_.png"
+            _base64_cache[filename] = tensor_to_base64(images[i])
+        print(f"[SendImageToPS] Base64 缓存已更新，共 {len(_base64_cache)} 张")
+
+        # 3. 通知 UXP 客户端（轻量通知，仅推送文件名）
+        _notify_uxp_clients(saved_filenames)
 
         print(f"[SendImageToPS] ====== 执行完毕 ======")
         return io.NodeOutput()
