@@ -207,38 +207,28 @@ def setup_routes():
         async def notify_render(request):
             """内部 API — SendImageToPS 节点执行后调用。
 
-            接收 Base64 PNG 图像数组，通过 WebSocket 直接广播给所有已连接的 PS 客户端。
-            PS 插件收到后直接显示，无需再通过 HTTP 下载。
+            接收文件名列表，通过 WebSocket 广播轻量通知给所有已连接的 PS 客户端。
+            PS 插件收到通知后主动通过 HTTP GET /view 下载图片。
 
-            参考 comfyui-photoshop: Backend.py /ps/render 路由 → send_message → WebSocket
-
-            Body: {"images": ["base64...", ...], "multi": true/false}
+            Body: {"filenames": ["SendImageToPS_00000_.png", ...]}
             """
             try:
                 data = await request.json()
-                images = data.get("images", [])
+                filenames = data.get("filenames", [])
 
-                if not images:
+                if not filenames:
                     return web.json_response(
-                        {"error": "缺少 images 参数"},
+                        {"error": "缺少 filenames 参数"},
                         status=400
                     )
 
-                is_multi = data.get("multi", len(images) > 1)
+                # 广播轻量通知给所有 PS 客户端
+                await _broadcast_to_ps({
+                    "type": "render_ready",
+                    "filenames": filenames
+                })
 
-                # 广播给所有 PS 客户端（与 comfyui-photoshop 协议对齐）
-                if is_multi and len(images) > 1:
-                    await _broadcast_to_ps({
-                        "type": "renders",
-                        "images": images
-                    })
-                else:
-                    await _broadcast_to_ps({
-                        "type": "render",
-                        "images": images
-                    })
-
-                print(f"[Comfyui-txtnode] 渲染通知已广播: {len(images)} 张图像（Base64）")
+                print(f"[Comfyui-txtnode] 渲染通知已广播: {len(filenames)} 个文件（轻量通知）")
                 return web.json_response({
                     "success": True,
                     "client_count": len(_txtnode_ps_clients)
@@ -246,6 +236,43 @@ def setup_routes():
 
             except Exception as e:
                 print(f"[Comfyui-txtnode] 渲染通知失败: {e}")
+                return web.json_response(
+                    {"error": str(e)},
+                    status=500
+                )
+
+        @prompt_server.routes.get("/txtnode/get_image_base64")
+        async def get_image_base64(request):
+            """UXP 端 HTTP 下载失败时的回退 API。
+
+            返回 SendImageToPS 缓存的 Base64 PNG 数据。
+            查询参数: filename - 要获取的文件名（如 SendImageToPS_00000_.png）
+            """
+            try:
+                from .nodes.ps_bridge import _base64_cache
+
+                filename = request.rel_url.query.get("filename", "")
+                if not filename:
+                    return web.json_response(
+                        {"error": "缺少 filename 参数"},
+                        status=400
+                    )
+
+                base64_data = _base64_cache.get(filename)
+                if not base64_data:
+                    return web.json_response(
+                        {"error": f"缓存中未找到文件: {filename}"},
+                        status=404
+                    )
+
+                return web.json_response({
+                    "success": True,
+                    "filename": filename,
+                    "base64": base64_data
+                })
+
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 获取 Base64 缓存失败: {e}")
                 return web.json_response(
                     {"error": str(e)},
                     status=500
