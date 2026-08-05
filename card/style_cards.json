@@ -1,0 +1,47 @@
+[
+  {
+    "name": "动漫CG",
+    "filename": "动漫CG.png",
+    "prompt": "Style: A hybrid illustration style built on flat anime-derived linework pushed toward volumetric, near-photographic shading, smooth gradient rendering that gives skin and hair a soft three-dimensional depth while retaining crisp graphic outline at the edges, meticulously blended highlight transitions that bridge cel-shading simplicity with painterly light behavior, confident anatomical grounding that leans semi-realistic without abandoning stylized facial proportion, and a polished, technically ambitious rendering intensity that sits deliberately between flat illustration and full photorealism. Influenced by: checkpoint-trained diffusion-model 2.5D aesthetic, semi-realistic anime rendering tradition, gacha-game character-art technique, hybrid cel-to-painterly shading practice.. Subject:"
+  },
+  {
+    "name": "二分动漫",
+    "filename": "二分动漫.png",
+    "prompt": "Style: A crisp, flat-shaded rendering style built on hard-edged tonal division that separates each plane of light and shadow into distinct, uniform steps rather than smooth gradation, confident bold outline holding every shape with graphic clarity, minimal color banding replacing any continuous blending, a clean, deliberate simplicity that mimics hand-drawn animation logic within a fully dimensional render, and a punchy, graphic-meets-dimensional intensity that feels stylized, crisp, and instantly readable. Influenced by: cel-shading rendering technique, non-photorealistic 3D-rendering practice, anime-adjacent toon-shader method, stylized game-rendering tradition.. Subject:"
+  },
+  {
+    "name": "3d平面",
+    "filename": "3d平面.png",
+    "prompt": "Style: A compact, dimensionally clever illustration style built on a fixed isometric projection that renders three-dimensional form without true perspective convergence, clean, confidently simplified geometry reduced to its most essential recognizable shapes, flat-to-subtly-gradated shading applied consistently across matching angular faces to reinforce dimensional clarity, a tidy, modular compositional logic designed for small-scale, instantly legible readability, and a polished, contemporary UI-adjacent graphic precision built for consistent iconographic systems. Influenced by: isometric game-art tradition, modern UI/UX iconography practice, flat-design illustration technique, procedural icon-set design method.. Subject:"
+  },
+  {
+    "name": "像素",
+    "filename": "像素.png",
+    "prompt": "Style A blocky, pixel-constrained illustration style built on hard, discrete square units standing in for all line and shading, an extremely limited tonal palette-logic forcing every gradient into stepped, visible bands, deliberate geometric simplification that reduces anatomy to its most essential recognizable silhouette, a rigid, grid-locked precision replacing any curved or organic mark-making, and a nostalgic, technically constrained charm that celebrates the aesthetic discipline of early digital-display limitation. Influenced by early video-game sprite-art tradition, Nintendo Entertainment System graphics technique, pixel-art illustration practice, retro arcade visual-design method.. Subject"
+  },
+  {
+    "name": "卡通色块",
+    "filename": "卡通色块.png",
+    "prompt": "Style: A soft, rounded flat-cartoon illustration style built on gentle, simplified geometric shapes carrying warm, approachable proportion, even flat-color fill applied with minimal shading beyond soft contact shadow, a pastel-adjacent restraint in tonal contrast that keeps every composition feeling calm and gentle, expressive, oversized eyes and rounded facial design prioritizing emotional warmth over detail, and a wholesome, tender animated sincerity that feels comforting, gentle, and quietly heartfelt. Influenced by: Rebecca Sugar, Cartoon Network flat-color animation tradition, gentle geometric character-design technique, contemporary emotionally-driven cartoon practice.. Subject:"
+  },
+  {
+    "name": "可爱2头",
+    "filename": "可爱2头.png",
+    "prompt": "Style: A super-deformed illustration style built on drastically compressed proportion where the head dominates a tiny, simplified body, minimal, rounded linework carrying maximum cuteness with minimal detail, flat-to-cel-based shading applied with cheerful simplicity, oversized expressive eyes and features exaggerated for instant emotional charm, and an endearing, playful miniature intensity that feels irresistibly cute and effortlessly lighthearted. Influenced by: chibi/super-deformed anime tradition, kawaii character-design technique, gag-manga illustration practice, cute-culture Japanese comic method.. Subject:"
+  },
+  {
+    "name": "手绘画笔",
+    "filename": "手绘画笔.png",
+    "prompt": "Style: A vibrant, toon-shaded illustration style built on crisp, hard-edged cel shading with minimal tonal gradation, confident, thick outline holding clean, geometric silhouette design, warm painterly sky and terrain rendered with soft matte-painted texture, expressive, rounded character proportions carrying whimsical charm, and a bright, adventurous storybook vibrancy that feels playful, timeless, and quietly heroic.Influenced by: Nintendo character-art direction, cel-shaded toon-rendering technique, painterly matte-background practice, whimsical adventure-game illustration method.. Subject:"
+  },
+  {
+    "name": "水彩",
+    "filename": "水彩.png",
+    "prompt": "Style: A soft, luminous illustration style built on delicate translucent washes blending seamlessly with clean anime-adjacent linework, gentle bleeding and diffusion at the edges lending each plane a tender, organic softness, restrained tonal layering achieved through patient, unhurried wash-building rather than opaque coverage, a hushed, dreamlike stillness carried through soft directional light, and a poetic, wistful character-illustration finish that feels equally hand-painted and anime-refined. Influenced by: traditional watercolor-and-wash technique, contemporary anime-illustration tradition, gentle wash-blending practice, semi-realistic character-art method.. Subject:"
+  },
+  {
+    "name": "简笔动漫",
+    "filename": "简笔动漫.png",
+    "prompt": "Style: A clean, expressive illustration style built on confident, simplified linework defining stylized, appealing proportions, flat-to-cel-based shading applied with straightforward graphic clarity, large expressive eyes carrying the primary emotional weight of the design, a bright, approachable simplicity that favors instant readability over rendering complexity, and a versatile, universally recognizable animated charm rooted in broad contemporary Japanese animation convention. Influenced by: contemporary anime illustration tradition, cel-shaded character-design technique, Japanese animation studio practice, mainstream manga-adaptation method.. Subject:"
+  }
+]
