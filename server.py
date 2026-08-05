@@ -1,5 +1,6 @@
 import server
 import os
+import json
 import base64
 import folder_paths
 from aiohttp import web
@@ -408,6 +409,230 @@ def setup_routes():
                     {"error": str(e)},
                     status=500
                 )
+
+        # ========== 风格提示词卡片 API ==========
+        # 数据分离：默认卡片（插件目录，可被更新覆盖）+ 用户卡片（用户数据目录，不受插件更新影响）
+        _default_card_dir = os.path.join(os.path.dirname(__file__), "card")
+        _default_cards_file = os.path.join(_default_card_dir, "style_cards.json")
+        
+        # 用户数据目录（ComfyUI/user_data/style_cards/）
+        _user_card_dir = os.path.join(folder_paths.base_path, "user_data", "style_cards")
+        _user_cards_file = os.path.join(_user_card_dir, "user_cards.json")
+
+        def _read_default_cards():
+            """读取插件默认卡片（只读，插件更新会覆盖）"""
+            if not os.path.exists(_default_cards_file):
+                return []
+            try:
+                with open(_default_cards_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return []
+
+        def _read_user_cards():
+            """读取用户自定义卡片"""
+            if not os.path.exists(_user_cards_file):
+                return []
+            try:
+                with open(_user_cards_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return []
+
+        def _write_user_cards(cards):
+            """写入用户自定义卡片"""
+            os.makedirs(_user_card_dir, exist_ok=True)
+            with open(_user_cards_file, "w", encoding="utf-8") as f:
+                json.dump(cards, f, ensure_ascii=False, indent=2)
+
+        def _read_style_cards():
+            """读取合并后的卡片列表（用户卡片同名覆盖默认）"""
+            default_cards = _read_default_cards()
+            user_cards = _read_user_cards()
+            
+            # 用 name 作为唯一键，用户卡片优先
+            merged = {c["name"]: c for c in default_cards if "name" in c}
+            for c in user_cards:
+                if "name" in c:
+                    merged[c["name"]] = c  # 用户卡片覆盖默认
+            
+            return list(merged.values())
+
+        def _find_card_image(filename):
+            """查找卡片图片（先查用户目录，再查默认目录）"""
+            if not filename:
+                return None
+            # 先查用户目录
+            user_path = os.path.join(_user_card_dir, filename)
+            if os.path.exists(user_path):
+                return user_path
+            # 再查默认目录
+            default_path = os.path.join(_default_card_dir, filename)
+            if os.path.exists(default_path):
+                return default_path
+            return None
+
+        @prompt_server.routes.get("/comfyui-txtnode/get_style_cards")
+        async def get_style_cards(request):
+            """获取所有风格卡片列表（合并默认 + 用户）"""
+            try:
+                cards = _read_style_cards()
+                return web.json_response({"cards": cards})
+            except Exception as e:
+                return web.json_response({"error": str(e)}, status=500)
+
+        @prompt_server.routes.get("/comfyui-txtnode/get_style_card_image")
+        async def get_style_card_image(request):
+            """获取风格卡片预览图（先查用户目录，再查默认目录）"""
+            try:
+                filename = request.rel_url.query.get("filename", "")
+                if not filename:
+                    return web.Response(status=400, text="缺少 filename 参数")
+
+                image_path = _find_card_image(filename)
+                if not image_path:
+                    return web.Response(status=404, text="图片不存在")
+
+                headers = {
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                }
+                return web.FileResponse(image_path, headers=headers)
+            except Exception as e:
+                return web.json_response({"error": str(e)}, status=500)
+
+        @prompt_server.routes.post("/comfyui-txtnode/add_style_card")
+        async def add_style_card(request):
+            """添加风格卡片到用户目录（不影响默认卡片）"""
+            try:
+                data = await request.json()
+                name = data.get("name", "").strip()
+                filename = data.get("filename", "").strip()
+                image_base64 = data.get("image_base64", "")
+                prompt = data.get("prompt", "")
+
+                if not name:
+                    return web.json_response({"error": "卡片名称不能为空"}, status=400)
+                if not image_base64:
+                    return web.json_response({"error": "图片数据不能为空"}, status=400)
+
+                # 默认文件名 = 名称.png
+                if not filename:
+                    filename = name + ".png"
+
+                # 解码 base64 图片
+                try:
+                    image_data = base64.b64decode(image_base64)
+                except Exception as e:
+                    return web.json_response({"error": f"图片数据解码失败: {e}"}, status=400)
+
+                # 保存图片到用户目录
+                os.makedirs(_user_card_dir, exist_ok=True)
+                image_path = os.path.join(_user_card_dir, filename)
+                with open(image_path, "wb") as f:
+                    f.write(image_data)
+
+                # 更新用户 JSON
+                cards = _read_user_cards()
+                # 检查是否已存在同名卡片
+                cards = [c for c in cards if c.get("name") != name]
+                cards.append({"name": name, "filename": filename, "prompt": prompt})
+                _write_user_cards(cards)
+
+                print(f"[Comfyui-txtnode] 风格卡片已添加到用户目录: {name}")
+                return web.json_response({"success": True, "message": f"已添加卡片: {name}"})
+            except Exception as e:
+                return web.json_response({"error": str(e)}, status=500)
+
+        @prompt_server.routes.post("/comfyui-txtnode/update_style_card")
+        async def update_style_card(request):
+            """更新风格卡片提示词（只更新用户目录中的卡片）"""
+            try:
+                data = await request.json()
+                name = data.get("name", "").strip()
+                prompt = data.get("prompt", "")
+
+                if not name:
+                    return web.json_response({"error": "卡片名称不能为空"}, status=400)
+
+                # 先检查卡片是否在用户目录中
+                user_cards = _read_user_cards()
+                updated = False
+                for card in user_cards:
+                    if card.get("name") == name:
+                        card["prompt"] = prompt
+                        updated = True
+                        break
+
+                if updated:
+                    _write_user_cards(user_cards)
+                    print(f"[Comfyui-txtnode] 用户风格卡片已更新: {name}")
+                    return web.json_response({"success": True, "message": f"已更新卡片: {name}"})
+
+                # 如果卡片在默认目录中，复制到用户目录并更新
+                default_cards = _read_default_cards()
+                target = None
+                for card in default_cards:
+                    if card.get("name") == name:
+                        target = card.copy()
+                        break
+
+                if target:
+                    target["prompt"] = prompt
+                    user_cards.append(target)
+                    _write_user_cards(user_cards)
+                    print(f"[Comfyui-txtnode] 默认风格卡片已复制到用户目录并更新: {name}")
+                    return web.json_response({"success": True, "message": f"已更新卡片: {name}"})
+
+                return web.json_response({"error": f"未找到卡片: {name}"}, status=404)
+            except Exception as e:
+                return web.json_response({"error": str(e)}, status=500)
+
+        @prompt_server.routes.post("/comfyui-txtnode/delete_style_card")
+        async def delete_style_card(request):
+            """删除风格卡片（只删除用户目录中的卡片）"""
+            try:
+                data = await request.json()
+                name = data.get("name", "").strip()
+
+                if not name:
+                    return web.json_response({"error": "卡片名称不能为空"}, status=400)
+
+                # 只从用户目录删除
+                user_cards = _read_user_cards()
+                target = None
+                remaining = []
+                for card in user_cards:
+                    if card.get("name") == name:
+                        target = card
+                    else:
+                        remaining.append(card)
+
+                if not target:
+                    # 检查是否在默认目录中
+                    default_cards = _read_default_cards()
+                    for card in default_cards:
+                        if card.get("name") == name:
+                            return web.json_response({
+                                "error": f"卡片 '{name}' 是默认卡片，无法删除。如需移除，请编辑提示词为空。"
+                            }, status=403)
+                    return web.json_response({"error": f"未找到卡片: {name}"}, status=404)
+
+                # 删除用户目录中的图片文件
+                filename = target.get("filename", "")
+                if filename:
+                    image_path = os.path.join(_user_card_dir, filename)
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                        print(f"[Comfyui-txtnode] 已删除用户卡片图片: {filename}")
+
+                # 更新用户 JSON
+                _write_user_cards(remaining)
+                print(f"[Comfyui-txtnode] 用户风格卡片已删除: {name}")
+                return web.json_response({"success": True, "message": f"已删除卡片: {name}"})
+            except Exception as e:
+                return web.json_response({"error": str(e)}, status=500)
 
     except AttributeError as e:
         print(f"[Comfyui-txtnode] 路由注册失败: {e}")
