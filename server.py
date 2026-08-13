@@ -2,10 +2,55 @@ import server
 import os
 import json
 import base64
+import io
 import folder_paths
+from PIL import Image
 from aiohttp import web
 from pathlib import Path
 from .nodes import trigger_word_manager
+
+# 预览图最大边长（超过则等比缩放）
+MAX_PREVIEW_SIDE = 512
+# JPG 保存质量
+PREVIEW_JPG_QUALITY = 85
+
+
+def resize_image_if_needed(image_path):
+    """检查图片是否需要缩放。
+    
+    如果最长边超过 MAX_PREVIEW_SIDE，等比缩放到最长边 = MAX_PREVIEW_SIDE，
+    并转为 JPG 格式（quality=85）。
+    小图（最长边 <= 512）不做任何处理。
+    
+    返回: (bytes, content_type) 或 None（表示无需缩放，调用方可直接返回原文件）
+    """
+    try:
+        with Image.open(image_path) as img:
+            w, h = img.size
+            max_side = max(w, h)
+            
+            # 小图不需要缩放
+            if max_side <= MAX_PREVIEW_SIDE:
+                return None
+            
+            # 等比缩放
+            ratio = MAX_PREVIEW_SIDE / max_side
+            new_w = int(w * ratio)
+            new_h = int(h * ratio)
+            
+            # 转 RGB（处理 RGBA/P 模式）
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+            
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=PREVIEW_JPG_QUALITY, optimize=True)
+            buf.seek(0)
+            return (buf.getvalue(), "image/jpeg")
+    except Exception as e:
+        print(f"[ModelPreview] 图片缩放失败: {e}")
+        return None
 
 
 def setup_routes():
@@ -323,6 +368,15 @@ def setup_routes():
                         "Pragma": "no-cache",
                         "Expires": "0",
                     }
+                    # 大图自动缩放为最长边 512px 的 JPG
+                    resized = resize_image_if_needed(image_path)
+                    if resized:
+                        data_bytes, content_type = resized
+                        return web.Response(
+                            body=data_bytes,
+                            content_type=content_type,
+                            headers=headers
+                        )
                     return web.FileResponse(image_path, headers=headers)
                 else:
                     return web.Response(status=404, text="Preview image not found")
@@ -389,7 +443,32 @@ def setup_routes():
                         except OSError as e:
                             print(f"[ModelPreview] 删除旧预览图失败: {old_path}, {e}")
 
-                preview_path = base_path + image_ext
+                # 大图自动缩放并转为 JPG（最长边 <= 512px）
+                try:
+                    img = Image.open(io.BytesIO(image_data))
+                    w, h = img.size
+                    max_side = max(w, h)
+                    
+                    if max_side > MAX_PREVIEW_SIDE:
+                        # 等比缩放
+                        ratio = MAX_PREVIEW_SIDE / max_side
+                        new_w = int(w * ratio)
+                        new_h = int(h * ratio)
+                        if img.mode not in ("RGB", "L"):
+                            img = img.convert("RGB")
+                        img = img.resize((new_w, new_h), Image.LANCZOS)
+                        buf = io.BytesIO()
+                        img.save(buf, format="JPEG", quality=PREVIEW_JPG_QUALITY, optimize=True)
+                        image_data = buf.getvalue()
+                        preview_path = base_path + ".jpg"
+                        print(f"[ModelPreview] 大图已缩放: {w}x{h} -> {new_w}x{new_h}")
+                    else:
+                        # 小图保持原格式保存
+                        preview_path = base_path + image_ext
+                except Exception as e:
+                    # PIL 处理失败时回退到原格式保存
+                    print(f"[ModelPreview] 图片处理失败，回退保存原图: {e}")
+                    preview_path = base_path + image_ext
                 
                 # 保存预览图
                 with open(preview_path, "wb") as f:

@@ -84,9 +84,12 @@ function extractFolders() {
  * 获取 LoRA 的短名称（不含路径）
  */
 function getShortName(name) {
-    if (name.includes("/")) return name.split("/").pop();
-    if (name.includes("\\")) return name.split("\\").pop();
-    return name;
+    let short = name;
+    if (short.includes("/")) short = short.split("/").pop();
+    if (short.includes("\\")) short = short.split("\\").pop();
+    const dotIndex = short.lastIndexOf(".");
+    if (dotIndex > 0) short = short.substring(0, dotIndex);
+    return short;
 }
 
 /**
@@ -893,7 +896,7 @@ async function initNodeUI(node) {
                     width: "26px",
                     height: "14px",
                     borderRadius: "7px",
-                    background: isEnabled ? "#666" : "#444",
+                    background: isEnabled ? "#4a6ab0" : "#444",
                     position: "relative",
                     cursor: "pointer",
                     flexShrink: "0",
@@ -923,6 +926,17 @@ async function initNodeUI(node) {
             toggleTrack.appendChild(toggleThumb);
             row.appendChild(toggleTrack);
 
+            // 缩略图 + 名称/提示 纵向容器
+            const infoContainer = el("div", {
+                style: {
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "6px",
+                    flex: "1",
+                    minWidth: "0",
+                },
+            });
+
             // 缩略图
             const thumb = el("img", {
                 src: thumbnailUrl,
@@ -931,18 +945,29 @@ async function initNodeUI(node) {
                     height: "32px",
                     borderRadius: "4px",
                     objectFit: "cover",
+                    flexShrink: "0",
                 },
             });
             thumb.onerror = () => {
                 thumb.style.background = "#3a3a3a";
                 thumb.src = "";
             };
-            row.appendChild(thumb);
+            infoContainer.appendChild(thumb);
+
+            // 名称 + 提示 纵向容器
+            const textContainer = el("div", {
+                style: {
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "2px",
+                    minWidth: "0",
+                    flex: "1",
+                },
+            });
 
             // 名称
             const nameSpan = el("span", {
                 style: {
-                    flex: "1",
                     fontSize: "11px",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -950,15 +975,16 @@ async function initNodeUI(node) {
                 },
                 title: shortName,
             }, [shortName]);
-            row.appendChild(nameSpan);
+            textContainer.appendChild(nameSpan);
 
-            // 操作按钮容器（按钮 + 提示文字）
+            infoContainer.appendChild(textContainer);
+            row.appendChild(infoContainer);
+
+            // 操作按钮容器（仅按钮）
             const actionContainer = el("div", {
                 style: {
                     display: "flex",
-                    flexDirection: "column",
                     alignItems: "center",
-                    gap: "2px",
                     flexShrink: "0",
                 },
             });
@@ -1053,37 +1079,40 @@ async function initNodeUI(node) {
                     // 忽略错误
                 }
 
-                // 根据缺失情况显示不同提示文字
+                // 根据缺失情况显示不同提示文字（追加到名称下方）
                 if (!hasTriggerWord && !hasPreview) {
                     const hint = el("div", {
                         style: {
                             fontSize: "9px",
                             color: "#888",
-                            textAlign: "center",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                         },
                     }, ["当前Lora没有触发词和预览图，请添加"]);
-                    actionContainer.appendChild(hint);
+                    textContainer.appendChild(hint);
                 } else if (!hasTriggerWord) {
                     const hint = el("div", {
                         style: {
                             fontSize: "9px",
                             color: "#888",
-                            textAlign: "center",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                         },
                     }, ["当前Lora没有触发词，请左键按钮添加"]);
-                    actionContainer.appendChild(hint);
+                    textContainer.appendChild(hint);
                 } else if (!hasPreview) {
                     const hint = el("div", {
                         style: {
                             fontSize: "9px",
                             color: "#888",
-                            textAlign: "center",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                         },
                     }, ["当前Lora没有预览图，请右键按钮添加"]);
-                    actionContainer.appendChild(hint);
+                    textContainer.appendChild(hint);
                 }
             })();
 
