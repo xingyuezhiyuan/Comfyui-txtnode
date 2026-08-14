@@ -188,6 +188,52 @@ def setup_routes():
                     status=500
                 )
 
+        # ========== 预设工作流加载 API ==========
+        # 白名单：只允许加载 workflow/ 目录下的指定工作流
+        _allowed_workflows = {"web", "workflow", "sdxl工作流示例"}
+        _workflow_dir = os.path.join(os.path.dirname(__file__), "workflow")
+
+        @prompt_server.routes.get("/comfyui-txtnode/load_workflow")
+        async def load_workflow(request):
+            """加载预设工作流 JSON（图格式）到前端画布
+
+            UXP 插件通过 URL 参数 ?workflow=web 触发，
+            前端扩展 workflow_loader.js 调用此 API 获取工作流数据。
+
+            查询参数:
+                name: 工作流名称（白名单校验）
+            """
+            try:
+                name = request.query.get("name", "")
+
+                # 白名单校验
+                if not name or name not in _allowed_workflows:
+                    return web.json_response(
+                        {"error": f"不支持的工作流: {name}"},
+                        status=404
+                    )
+
+                workflow_path = os.path.join(_workflow_dir, name + ".json")
+                if not os.path.exists(workflow_path):
+                    print(f"[Comfyui-txtnode] 工作流文件不存在: {workflow_path}")
+                    return web.json_response(
+                        {"error": f"工作流文件不存在: {name}.json"},
+                        status=404
+                    )
+
+                with open(workflow_path, "r", encoding="utf-8") as f:
+                    workflow = json.load(f)
+
+                print(f"[Comfyui-txtnode] 加载预设工作流: {name}.json")
+                return web.json_response({"workflow": workflow})
+
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 加载工作流失败: {e}")
+                return web.json_response(
+                    {"error": str(e)},
+                    status=500
+                )
+
         # ========== WebSocket 推送（向 UXP 插件推送渲染结果） ==========
         _txtnode_ps_clients = []  # {ws, clientId, ip}
 
