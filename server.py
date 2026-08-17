@@ -1,6 +1,7 @@
 import server
 import os
 import json
+import uuid
 import base64
 import io
 import folder_paths
@@ -294,6 +295,86 @@ def setup_routes():
             for dc in disconnected:
                 if dc in _txtnode_ps_clients:
                     _txtnode_ps_clients.remove(dc)
+
+        @prompt_server.routes.post("/txtnode/notify_preview")
+        async def notify_preview(request):
+            """UXP 插件上传画布/遮罩成功后调用。
+
+            向所有已连接的浏览器前端广播 txtnode_preview_updated 事件，
+            触发 GetImageFromPS 节点预览刷新。
+            （UXP 通过 HTTP 直接提交工作流时不携带 client_id，
+            ComfyUI 不会向前端广播 execution_start 等事件，
+            因此需要此显式广播来刷新节点预览。）
+            """
+            try:
+                prompt_server.send_sync(
+                    "txtnode_preview_updated",
+                    {"source": "uxp_upload"},
+                    None  # sid=None → 广播给所有前端客户端
+                )
+                print("[Comfyui-txtnode] 已广播节点预览刷新事件")
+                return web.json_response({"success": True})
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 广播预览刷新事件失败: {e}")
+                return web.json_response({"error": str(e)}, status=500)
+
+        # ========== 运行前同步：ComfyUI 前端点运行时拉取 PS 画布+遮罩 ==========
+        # 流程：前端 request_sync → 后端广播 sync_request 给 PS 客户端
+        #      → PS 执行导出+上传 → PS 调用 sync_done → 后端广播
+        #        txtnode_sync_done 给浏览器前端 → 前端放行提交工作流
+
+        @prompt_server.routes.post("/txtnode/request_sync")
+        async def request_sync(request):
+            """ComfyUI 前端点击运行按钮时调用。
+
+            生成 request_id 并通过 WebSocket 广播 sync_request 给所有 PS 客户端，
+            请求 PS 插件导出并上传最新画布+遮罩。
+            """
+            try:
+                request_id = str(uuid.uuid4())
+                client_count = len(_txtnode_ps_clients)
+
+                if client_count > 0:
+                    await _broadcast_to_ps({
+                        "type": "sync_request",
+                        "request_id": request_id
+                    })
+                    print(f"[Comfyui-txtnode] 同步请求已广播: {request_id}（PS 客户端 {client_count} 个）")
+                else:
+                    print("[Comfyui-txtnode] 同步请求：无 PS 客户端连接，跳过广播")
+
+                return web.json_response({
+                    "success": True,
+                    "request_id": request_id,
+                    "client_count": client_count
+                })
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 同步请求失败: {e}")
+                return web.json_response({"error": str(e)}, status=500)
+
+        @prompt_server.routes.post("/txtnode/sync_done")
+        async def sync_done(request):
+            """PS 插件完成画布+遮罩导出/上传后调用。
+
+            向所有浏览器前端广播 txtnode_sync_done 事件，放行等待中的运行请求。
+
+            Body: {"request_id": "...", "success": true/false}
+            """
+            try:
+                data = await request.json()
+                request_id = data.get("request_id", "")
+                success = bool(data.get("success", False))
+
+                prompt_server.send_sync(
+                    "txtnode_sync_done",
+                    {"request_id": request_id, "success": success},
+                    None  # sid=None → 广播给所有前端客户端
+                )
+                print(f"[Comfyui-txtnode] 同步完成通知已广播: {request_id}, success={success}")
+                return web.json_response({"success": True})
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 同步完成通知失败: {e}")
+                return web.json_response({"error": str(e)}, status=500)
 
         @prompt_server.routes.post("/txtnode/notify_render")
         async def notify_render(request):
