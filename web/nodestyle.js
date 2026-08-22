@@ -107,5 +107,8 @@ app.registerExtension({
 
         api.addEventListener("execution_start", refreshAll);
         api.addEventListener("executed", refreshAll);
+        // UXP 插件上传画布/遮罩后，后端广播此自定义事件触发预览刷新
+        // （UXP 通过 HTTP 提交工作流不带 client_id，execution_start 不会送达前端）
+        api.addEventListener("txtnode_preview_updated", refreshAll);
     },
 });

@@ -539,8 +539,8 @@ async function initNodeUI(node) {
 
         // 渲染缩略图
         for (const loraName of pageItems) {
-            const isSelected = state.selectedLoras.has(loraName);
-            const card = createLoraCard(loraName, isSelected);
+            const item = state.selectedLoras.get(loraName);
+            const card = createLoraCard(loraName, !!item, item?.enabled === false);
             gridContainer.appendChild(card);
         }
 
@@ -615,7 +615,7 @@ async function initNodeUI(node) {
     /**
      * 创建 LoRA 缩略图卡片
      */
-    function createLoraCard(loraName, isSelected) {
+    function createLoraCard(loraName, isSelected, isDisabled) {
         const shortName = getShortName(loraName);
         const thumbnailUrl = getThumbnailUrl(loraName);
 
@@ -628,7 +628,9 @@ async function initNodeUI(node) {
                 overflow: "hidden",
                 cursor: "pointer",
                 border: isSelected ? "2px solid #4a9eff" : "2px solid transparent",
-                transition: "border-color 0.2s",
+                // 已禁用的 LoRA 弱化显示（与已选列表行风格一致）
+                opacity: isDisabled ? "0.45" : "1",
+                transition: "border-color 0.2s, opacity 0.2s",
             },
             onClick: () => toggleLora(loraName),
         });
@@ -785,19 +787,25 @@ async function initNodeUI(node) {
     }
 
     /**
-     * 切换 LoRA 选中状态
+     * 切换 LoRA 状态
+     * - 启用中 → 移除（同关闭按钮，删除条目并移除触发词）
+     * - 已禁用 → 重新启用（保留强度，恢复触发词）
+     * - 未选中 → 新增
      */
     async function toggleLora(loraName) {
-        if (state.selectedLoras.has(loraName)) {
-            // 取消选中
+        const existing = state.selectedLoras.get(loraName);
+        if (existing && existing.enabled !== false) {
+            // 启用中 → 移除
             state.selectedLoras.delete(loraName);
-            // 从提示词中移除触发词和 LoRA 标签
             removeLoraFromPrompt(loraName);
+        } else if (existing) {
+            // 已禁用 → 重新启用（保留强度，触发词重新写入）
+            existing.enabled = true;
+            await addLoraToPrompt(loraName);
         } else {
-            // 选中
+            // 新增
             const newItem = { name: loraName, strength: 1.0, enabled: true };
             state.selectedLoras.set(loraName, newItem);
-            // 添加触发词和 LoRA 标签
             await addLoraToPrompt(loraName);
         }
 
@@ -903,9 +911,17 @@ async function initNodeUI(node) {
                     transition: "background 0.2s",
                 },
                 title: isEnabled ? "点击禁用此 LoRA" : "点击启用此 LoRA",
-                onClick: (e) => {
+                onClick: async (e) => {
                     e.stopPropagation();
                     item.enabled = !item.enabled;
+                    if (item.enabled) {
+                        // 启用：触发词重新写入正面提示词
+                        await addLoraToPrompt(name);
+                    } else {
+                        // 禁用：临时移除触发词（同关闭按钮行为）
+                        removeLoraFromPrompt(name);
+                    }
+                    renderGrid();
                     renderSelectedList();
                     syncToWidget();
                 },
