@@ -9,6 +9,7 @@ PS Bridge 模块 - ComfyUI 与 Photoshop 之间的图像传输桥梁。
 import torch
 import numpy as np
 import os
+import threading
 from PIL import Image
 from comfy_api.latest import io
 from io import BytesIO
@@ -19,8 +20,12 @@ import base64
 # 文件哈希缓存（用于 IS_CHANGED 变更检测）
 _file_hashes = {}
 
-# Base64 缓存（供 UXP 端 HTTP 回退拉取，每次 SendImageToPS 执行时覆盖）
+# Base64 缓存（供 UXP 端 HTTP 回退拉取，按含 client_id 的文件名为键，多用户隔离）
+# 通过线程锁保护写入，避免多客户端并发 SendImageToPS 时互清彼此缓存（ADR-0035 收尾）。
 _base64_cache = {}  # {filename: base64_string}
+_base64_cache_lock = threading.Lock()
+# 单客户端最多缓存件数（防极端堆积）
+_BASE64_CACHE_PER_CLIENT_MAX = 8
 
 # 固定文件名
 CANVAS_FILENAME = "xyps_canvas.png"
@@ -156,13 +161,15 @@ def load_image_from_input(filename):
 
 # ======================== 保存辅助函数 ========================
 
-def save_images_to_output(images):
+def save_images_to_output(images, client_id=""):
     """将 IMAGE 张量保存到 ComfyUI output 目录。
 
-    每张图像保存为 SendImageToPS_{序号:05d}_.png 格式。
+    每张图像保存为 SendImageToPS_ 前缀文件；可传入 client_id 使输出文件名带
+    客户端命名空间（多用户隔离），未传则回退固定命名。
 
     Args:
         images: torch.Tensor, 形状为 [B, H, W, C]，值域 [0, 1]
+        client_id: str, 客户端稳定 ID（可选）
 
     Returns:
         list[str]: 保存的文件名列表
@@ -172,11 +179,12 @@ def save_images_to_output(images):
 
     pil_images = tensor_to_pil(images)
     saved_files = []
+    prefix = f"SendImageToPS_{client_id}_" if client_id else "SendImageToPS_"
     for i, pil_img in enumerate(pil_images):
         # 确保为 RGB 或 RGBA 模式
         if pil_img.mode not in ("RGB", "RGBA"):
             pil_img = pil_img.convert("RGB")
-        file_name = f"SendImageToPS_{i:05d}_.png"
+        file_name = f"{prefix}{i:05d}_.png"
         file_path = os.path.join(output_dir, file_name)
         pil_img.save(file_path, format="PNG")
         print(f"[save_images_to_output] 已保存: {file_path}")
@@ -239,7 +247,8 @@ def _notify_uxp_clients(saved_filenames):
 class GetImageFromPS(io.ComfyNode):
     """从 ComfyUI input 目录读取 UXP 插件导出的画布和遮罩。
 
-    内部固定读取 xyps_canvas.png 和 xyps_mask.png，
+    支持按任务指定文件名（image_filename / mask_filename），用于局域网多用户隔离；
+    为空时回退到固定文件名 xyps_canvas.png / xyps_mask.png（兼容浏览器前端直接运行的旧流程）。
     文件不存在时使用占位图（画布）和全白遮罩（mask）。
     节点背景显示画布+遮罩预览图。
     """
@@ -250,7 +259,12 @@ class GetImageFromPS(io.ComfyNode):
             node_id="GetImageFromPS",
             display_name="从PS获取图像",
             category="PS Bridge",
-            inputs=[],  # 零可见输入——文件名内部固定
+            inputs=[
+                io.String.Input("image_filename", default="", optional=True,
+                    display_name="画布文件名(可选，默认xyps_canvas.png)"),
+                io.String.Input("mask_filename", default="", optional=True,
+                    display_name="遮罩文件名(可选，默认xyps_mask.png)"),
+            ],
             outputs=[
                 io.Image.Output("image"),
                 io.Mask.Output("mask"),
@@ -258,11 +272,14 @@ class GetImageFromPS(io.ComfyNode):
         )
 
     @classmethod
-    def IS_CHANGED(cls):
-        """检测画布或遮罩文件是否变化，触发重新执行。"""
+    def IS_CHANGED(cls, image_filename="", mask_filename=""):
+        """检测画布或遮罩文件是否变化，触发重新执行。
+
+        支持按任务指定文件名：为空时回退到固定文件名。
+        """
         input_dir = folder_paths.get_input_directory()
-        canvas_path = os.path.join(input_dir, CANVAS_FILENAME)
-        mask_path = os.path.join(input_dir, MASK_FILENAME)
+        canvas_path = os.path.join(input_dir, image_filename or CANVAS_FILENAME)
+        mask_path = os.path.join(input_dir, mask_filename or MASK_FILENAME)
         canvas_changed = _is_file_changed(canvas_path)
         mask_changed = _is_file_changed(mask_path)
         if canvas_changed or mask_changed:
@@ -270,16 +287,21 @@ class GetImageFromPS(io.ComfyNode):
         return False
 
     @classmethod
-    def execute(cls):
-        """执行节点：加载画布和遮罩（固定文件名 + 回退）。
+    def execute(cls, image_filename="", mask_filename=""):
+        """执行节点：加载画布和遮罩。
+
+        image_filename / mask_filename 可指定每任务隔离文件（多用户局域网），
+        为空时回退到固定文件名 xyps_canvas.png / xyps_mask.png。
 
         Returns:
             io.NodeOutput: 包含 image_tensor 和 mask_tensor
         """
         print(f"[GetImageFromPS] ====== 开始执行 =====")
         input_dir = folder_paths.get_input_directory()
-        canvas_path = os.path.join(input_dir, CANVAS_FILENAME)
-        mask_path = os.path.join(input_dir, MASK_FILENAME)
+        canvas_file = image_filename or CANVAS_FILENAME
+        mask_file = mask_filename or MASK_FILENAME
+        canvas_path = os.path.join(input_dir, canvas_file)
+        mask_path = os.path.join(input_dir, mask_file)
 
         # 1. 加载画布图像（带回退到占位图）
         print(f"[GetImageFromPS] 查找画布: {canvas_path}")
@@ -369,36 +391,49 @@ class SendImageToPS(io.ComfyNode):
             is_output_node=True,
             inputs=[
                 io.Image.Input("images"),
+                io.String.Input("client_id", default="", optional=True,
+                    display_name="客户端ID(可选，用于多用户输出隔离)"),
             ],
             outputs=[],  # 无输出——纯保存+通知节点，不传递图像张量
         )
 
     @classmethod
-    def execute(cls, images):
+    def execute(cls, images, client_id=""):
         """执行节点：保存图像到输出目录，缓存 Base64 数据，并通知 UXP 客户端。
 
         流程：
-        1. 保存 PNG 到 output/ 目录（供 HTTP GET /view 下载）
-        2. 将 Base64 数据缓存到内存（供 HTTP 下载失败时回退拉取）
+        1. 保存 PNG 到 output/ 目录（供 HTTP GET /view 下载；可选按 client_id 隔离命名）
+        2. 将 Base64 数据缓存到内存（供 HTTP 下载失败时回退拉取，键为含 client_id 的文件名）
         3. 通过 WebSocket 推送轻量通知（仅包含文件名）
 
         Args:
             images: torch.Tensor, 形状为 [B, H, W, C]，值域 [0, 1]
+            client_id: str, 客户端稳定 ID（可选，用于输出隔离命名与缓存键）
         """
         print(f"[SendImageToPS] ====== 开始执行 ======")
-        print(f"[SendImageToPS] images 张量形状: {images.shape}")
+        print(f"[SendImageToPS] images 张量形状: {images.shape}, client_id={client_id or '(未指定，回退固定名)'}")
 
         # 1. 保存图像到 output 目录
-        saved_filenames = save_images_to_output(images)
+        saved_filenames = save_images_to_output(images, client_id)
 
-        # 2. 缓存 Base64 数据（覆盖旧缓存，供 UXP 端 HTTP 回退拉取）
-        global _base64_cache
-        _base64_cache = {}
+        # 2. 缓存 Base64 数据（键为含 client_id 的文件名，多用户隔离）
+        #    加锁避免多客户端并发时互清彼此缓存；仅清理本客户端旧键并按客户端保留上限。
         batch_size = min(images.shape[0], 4)
-        for i in range(batch_size):
-            filename = f"SendImageToPS_{i:05d}_.png"
-            _base64_cache[filename] = tensor_to_base64(images[i])
-        print(f"[SendImageToPS] Base64 缓存已更新，共 {len(_base64_cache)} 张")
+        prefix = f"SendImageToPS_{client_id}_" if client_id else "SendImageToPS_"
+        with _base64_cache_lock:
+            # 仅移除本客户端前缀的旧键（含固定名前缀），不触碰其他客户端缓存
+            for old_key in list(_base64_cache.keys()):
+                if old_key.startswith(prefix):
+                    del _base64_cache[old_key]
+            for i in range(batch_size):
+                filename = f"{prefix}{i:05d}_.png"
+                _base64_cache[filename] = tensor_to_base64(images[i])
+            # 若本客户端缓存仍超上限，LRU 式丢弃最旧（按插入顺序近似）
+            own_keys = [k for k in _base64_cache.keys() if k.startswith(prefix)]
+            if len(own_keys) > _BASE64_CACHE_PER_CLIENT_MAX:
+                for old_key in own_keys[: len(own_keys) - _BASE64_CACHE_PER_CLIENT_MAX]:
+                    _base64_cache.pop(old_key, None)
+        print(f"[SendImageToPS] Base64 缓存已更新（本客户端 {batch_size} 张，锁定保护）")
 
         # 3. 通知 UXP 客户端（轻量通知，仅推送文件名）
         _notify_uxp_clients(saved_filenames)
