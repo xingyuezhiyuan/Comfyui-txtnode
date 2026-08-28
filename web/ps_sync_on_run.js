@@ -82,22 +82,69 @@ function waitForSyncDone(requestId) {
             let data = event;
             if (event && event.detail) data = event.detail;
             if (!data || data.request_id !== requestId) return;
-            settle(!!data.success);
+            settle({
+                success: !!data.success,
+                canvas_filename: data.canvas_filename || "",
+                mask_filename: data.mask_filename || "",
+                client_id: data.client_id || ""
+            });
         };
 
-        function settle(success) {
+        function settle(result) {
             if (settled) return;
             settled = true;
             if (timeoutId) clearTimeout(timeoutId);
             api.removeEventListener("txtnode_sync_done", handler);
-            resolve(success);
+            resolve(result);
         }
 
         api.addEventListener("txtnode_sync_done", handler);
         timeoutId = setTimeout(function () {
-            settle(false); // 超时按失败处理，继续用旧图执行
+            settle({ success: false, canvas_filename: "", mask_filename: "", client_id: "" }); // 超时按失败处理，继续用旧图执行
         }, SYNC_TIMEOUT_MS);
     });
+}
+
+// ========== 注入每任务隔离文件名到 GetImageFromPS 节点 ==========
+function findGetImageFromPSNodes() {
+    const nodes = (app.graph && (app.graph._nodes || app.graph.nodes)) || [];
+    return nodes.filter(function (node) {
+        return (node.comfyClass === TARGET_NODE || node.type === TARGET_NODE);
+    });
+}
+
+function setWidgetValue(node, name, value) {
+    const w = node.widgets && node.widgets.find(function (x) { return x.name === name; });
+    if (w) {
+        w.value = value;
+        if (typeof w.callback === "function") {
+            try { w.callback(value); } catch (e) { /* 忽略回调异常 */ }
+        }
+    }
+}
+
+function injectPSFilenames(canvasFilename, maskFilename) {
+    const nodes = findGetImageFromPSNodes();
+    for (const node of nodes) {
+        if (canvasFilename) setWidgetValue(node, "image_filename", canvasFilename);
+        if (maskFilename) setWidgetValue(node, "mask_filename", maskFilename);
+    }
+}
+
+// ========== 把客户端稳定 ID 注入 SendImageToPS 节点，实现浏览器路径输出按客户端隔离 ==========
+function findSendImageToPSNodes() {
+    const nodes = (app.graph && (app.graph._nodes || app.graph.nodes)) || [];
+    return nodes.filter(function (node) {
+        return (node.comfyClass === "SendImageToPS" || node.type === "SendImageToPS");
+    });
+}
+
+function injectClientId(clientId) {
+    if (!clientId) return;
+    const nodes = findSendImageToPSNodes();
+    for (const node of nodes) {
+        setWidgetValue(node, "client_id", clientId);
+    }
 }
 
 // ========== 主流程：运行前同步 ==========
@@ -127,8 +174,17 @@ async function syncBeforeRun() {
             return true;
         }
 
-        const success = await waitForSyncDone(data.request_id);
+        const syncDone = await waitForSyncDone(data.request_id);
+        const success = syncDone.success;
         if (success) {
+            // 把本次上传的每任务隔离文件名注入 GetImageFromPS 节点输入，确保读取该文件
+            if (syncDone.canvas_filename || syncDone.mask_filename) {
+                injectPSFilenames(syncDone.canvas_filename, syncDone.mask_filename);
+            }
+            // 把客户端稳定 ID 注入 SendImageToPS，使浏览器运行路径输出同样按客户端隔离（ADR-0035）
+            if (syncDone.client_id) {
+                injectClientId(syncDone.client_id);
+            }
             showToast("画布同步完成", "rgba(40,140,60,0.9)");
             hideToast(2000);
         } else {

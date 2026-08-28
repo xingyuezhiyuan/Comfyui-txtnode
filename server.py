@@ -332,16 +332,37 @@ def setup_routes():
             """
             try:
                 request_id = str(uuid.uuid4())
+                # 请求方 IP：优先 request.remote（直连场景）；反代/NAT 下经 X-Forwarded-For 透传则取首个 IP（ADO-0036）
+                requester_ip = request.remote or ""
+                xff = request.headers.get("X-Forwarded-For", "")
+                if xff:
+                    first = xff.split(",")[0].strip()
+                    if first:
+                        requester_ip = first
                 client_count = len(_txtnode_ps_clients)
 
-                if client_count > 0:
+                # 按客户端 IP 精准定位：优先只把 sync_request 发送给与请求方同机的 PS，
+                # 避免多台 PS 同时响应同一 request_id 写同名文件（ADR-0035）。无匹配则回退广播。
+                target = None
+                for c in _txtnode_ps_clients:
+                    if c["ip"] == requester_ip:
+                        target = c
+                        break
+
+                if target is not None:
+                    await target["ws"].send_json({
+                        "type": "sync_request",
+                        "request_id": request_id
+                    })
+                    print(f"[Comfyui-txtnode] 同步请求已定向发送: {request_id} → {target['clientId']}（请求方IP {requester_ip}）")
+                elif client_count > 0:
                     await _broadcast_to_ps({
                         "type": "sync_request",
                         "request_id": request_id
                     })
-                    print(f"[Comfyui-txtnode] 同步请求已广播: {request_id}（PS 客户端 {client_count} 个）")
+                    print(f"[Comfyui-txtnode] 同步请求已广播(无IP匹配): {request_id}（PS 客户端 {client_count} 个）")
                 else:
-                    print("[Comfyui-txtnode] 同步请求：无 PS 客户端连接，跳过广播")
+                    print("[Comfyui-txtnode] 同步请求：无 PS 客户端连接，跳过")
 
                 return web.json_response({
                     "success": True,
@@ -357,20 +378,32 @@ def setup_routes():
             """PS 插件完成画布+遮罩导出/上传后调用。
 
             向所有浏览器前端广播 txtnode_sync_done 事件，放行等待中的运行请求。
+            广播内容额外携带本次上传的每任务隔离文件名（canvas_filename/mask_filename），
+            前端据此把 GetImageFromPS 节点输入指向本次上传的文件，实现多用户文件隔离。
 
-            Body: {"request_id": "...", "success": true/false}
+            Body: {"request_id": "...", "success": true/false,
+                   "canvas_filename": "...", "mask_filename": "..."}
             """
             try:
                 data = await request.json()
                 request_id = data.get("request_id", "")
                 success = bool(data.get("success", False))
+                canvas_filename = data.get("canvas_filename", "") or ""
+                mask_filename = data.get("mask_filename", "") or ""
+                client_id = data.get("client_id", "") or ""
 
                 prompt_server.send_sync(
                     "txtnode_sync_done",
-                    {"request_id": request_id, "success": success},
+                    {
+                        "request_id": request_id,
+                        "success": success,
+                        "canvas_filename": canvas_filename,
+                        "mask_filename": mask_filename,
+                        "client_id": client_id,
+                    },
                     None  # sid=None → 广播给所有前端客户端
                 )
-                print(f"[Comfyui-txtnode] 同步完成通知已广播: {request_id}, success={success}")
+                print(f"[Comfyui-txtnode] 同步完成通知已广播: {request_id}, success={success}, canvas={canvas_filename}, mask={mask_filename}, client_id={client_id}")
                 return web.json_response({"success": True})
             except Exception as e:
                 print(f"[Comfyui-txtnode] 同步完成通知失败: {e}")
@@ -422,7 +455,7 @@ def setup_routes():
             查询参数: filename - 要获取的文件名（如 SendImageToPS_00000_.png）
             """
             try:
-                from .nodes.ps_bridge import _base64_cache
+                from .nodes.ps_bridge import _base64_cache, _base64_cache_lock
 
                 filename = request.rel_url.query.get("filename", "")
                 if not filename:
@@ -431,7 +464,9 @@ def setup_routes():
                         status=400
                     )
 
-                base64_data = _base64_cache.get(filename)
+                # 与写入方共用同一把锁，避免读到并发写入中间态（多客户端隔离收尾）
+                with _base64_cache_lock:
+                    base64_data = _base64_cache.get(filename)
                 if not base64_data:
                     return web.json_response(
                         {"error": f"缓存中未找到文件: {filename}"},
