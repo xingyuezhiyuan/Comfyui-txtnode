@@ -204,6 +204,16 @@ async function syncBeforeRun() {
 app.registerExtension({
     name: "Comfyui-txtnode.PSSyncOnRun",
 
+    // 隐藏 GetImageFromPS 的文件名控件（文件名由本扩展自动注入，无需用户填写）
+    nodeCreated(node) {
+        if (node.comfyClass !== TARGET_NODE && node.type !== TARGET_NODE) return;
+        for (const w of node.widgets || []) {
+            if (w.name === "image_filename" || w.name === "mask_filename") {
+                w.hidden = true;
+            }
+        }
+    },
+
     async setup() {
         const origQueuePrompt = app.queuePrompt;
         if (!origQueuePrompt) {
