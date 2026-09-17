@@ -830,6 +830,51 @@ def setup_routes():
             except Exception as e:
                 return web.json_response({"error": str(e)}, status=500)
 
+        @prompt_server.routes.get("/comfyui-txtnode/local_ip")
+        async def get_local_ip(request):
+            """获取本机局域网 IPv4 地址列表（供星月AI插件一键获取可分发的服务器地址）
+
+            UXP 插件端无法枚举本机网卡（ADR-0087），借道本接口由服务端回显。
+            优先用 psutil 枚举网卡（ComfyUI 自带依赖），失败时回退 UDP 探测默认路由出口 IP。
+            """
+            try:
+                import socket
+                import ipaddress
+
+                raw_ips = []
+                try:
+                    import psutil
+                    for _iface, addr_list in psutil.net_if_addrs().items():
+                        for addr in addr_list:
+                            if addr.family == socket.AF_INET and addr.address:
+                                raw_ips.append(addr.address)
+                except ImportError:
+                    try:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        try:
+                            s.connect(("8.8.8.8", 80))
+                            raw_ips.append(s.getsockname()[0])
+                        finally:
+                            s.close()
+                    except Exception:
+                        pass
+
+                # 只保留私有网段 IPv4（排除回环/链路本地地址），去重保序
+                ips = []
+                for ip in raw_ips:
+                    try:
+                        obj = ipaddress.ip_address(ip)
+                    except ValueError:
+                        continue
+                    if (obj.version == 4 and obj.is_private
+                            and not obj.is_loopback and not obj.is_link_local
+                            and ip not in ips):
+                        ips.append(ip)
+
+                return web.json_response({"success": True, "ips": ips})
+            except Exception as e:
+                return web.json_response({"success": False, "error": str(e)}, status=500)
+
         @prompt_server.routes.post("/comfyui-txtnode/delete_style_card")
         async def delete_style_card(request):
             """删除风格卡片（只删除用户目录中的卡片）"""

@@ -204,11 +204,14 @@ async function syncBeforeRun() {
 app.registerExtension({
     name: "Comfyui-txtnode.PSSyncOnRun",
 
-    // 隐藏 GetImageFromPS 的文件名控件（文件名由本扩展自动注入，无需用户填写）
+    // 隐藏由本扩展自动注入的控件（文件名由同步结果注入，客户端ID由稳定 ID 注入，无需用户填写）
     nodeCreated(node) {
-        if (node.comfyClass !== TARGET_NODE && node.type !== TARGET_NODE) return;
+        const isGet = node.comfyClass === TARGET_NODE || node.type === TARGET_NODE;
+        const isSend = node.comfyClass === "SendImageToPS" || node.type === "SendImageToPS";
+        if (!isGet && !isSend) return;
+        const hideNames = isGet ? ["image_filename", "mask_filename"] : ["client_id"];
         for (const w of node.widgets || []) {
-            if (w.name === "image_filename" || w.name === "mask_filename") {
+            if (hideNames.includes(w.name)) {
                 w.hidden = true;
             }
         }
