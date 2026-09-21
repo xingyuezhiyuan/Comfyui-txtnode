@@ -55,8 +55,8 @@ class ResizeAndPadNode(io.ComfyNode):
             category="txtnode",
             inputs=[
                 io.Image.Input("input_image"),
-                io.Int.Input("target_size", default=1024, min=64, max=8192, step=8),
-                io.Int.Input("resolution_multiple", default=32, min=8, max=128, step=8),
+                io.Int.Input("target_size", default=1024, min=64, max=8192, step=1),
+                io.Int.Input("resolution_multiple", default=8, min=0, max=128, step=8),
                 io.Combo.Input("upscale_method", options=cls.UPSCALE_METHODS),
                 io.Boolean.Input("resize_and_pad", default=True),
             ],
@@ -73,14 +73,15 @@ class ResizeAndPadNode(io.ComfyNode):
             image_info_out = (0, 0, 0, 0, 1)
             return io.NodeOutput(input_image, image_info_out)
 
-        # 将 target_size 吸附到 resolution_multiple 的最近倍数
-        remainder = target_size % resolution_multiple
-        if remainder != 0:
-            if remainder >= resolution_multiple / 2:
-                target_size = target_size + (resolution_multiple - remainder)
-            else:
-                target_size = target_size - remainder
-        target_size = max(target_size, resolution_multiple)
+        # 将 target_size 吸附到 resolution_multiple 的最近倍数（为 0 时不修正，按原值使用）
+        if resolution_multiple > 0:
+            remainder = target_size % resolution_multiple
+            if remainder != 0:
+                if remainder >= resolution_multiple / 2:
+                    target_size = target_size + (resolution_multiple - remainder)
+                else:
+                    target_size = target_size - remainder
+            target_size = max(target_size, resolution_multiple)
 
         pad_color = (0, 0, 0)  # 黑色填充
 
@@ -182,18 +183,17 @@ class RemovePadFromImageNode(io.ComfyNode):
                 if diff <= tolerance * scale_from_image:
                     scale_factor = float(latent_scale)
 
-            # 缩放填充坐标并裁剪
-            scaled_left = int(left * scale_factor)
-            scaled_top = int(top * scale_factor)
-            scaled_right = int(right * scale_factor)
-            scaled_bottom = int(bottom * scale_factor)
+            # 缩放填充坐标并裁剪（对坐标做边界保护，避免任意尺寸下裁剪框越界或反转报错）
+            crop_left = max(0, int(left * scale_factor))
+            crop_top = max(0, int(top * scale_factor))
+            crop_right = min(final_width, final_width - int(right * scale_factor))
+            crop_bottom = min(final_height, final_height - int(bottom * scale_factor))
 
-            crop_box = (
-                scaled_left,
-                scaled_top,
-                final_width - scaled_right,
-                final_height - scaled_bottom,
-            )
-            cropped_images.append(pil_image.crop(crop_box))
+            # 裁剪框无效（宽或高非正）时保留原图
+            if crop_right - crop_left <= 0 or crop_bottom - crop_top <= 0:
+                cropped_images.append(pil_image)
+                continue
+
+            cropped_images.append(pil_image.crop((crop_left, crop_top, crop_right, crop_bottom)))
 
         return io.NodeOutput(pil_to_tensor(cropped_images))

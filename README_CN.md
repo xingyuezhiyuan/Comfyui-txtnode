@@ -100,7 +100,7 @@
 |------|------|--------|------|
 | `input_image` | IMAGE | - | 输入图像 |
 | `target_size` | INT | `1024` | 目标尺寸（64-8192，自动吸附到对齐倍数） |
-| `resolution_multiple` | INT | `32` | 对齐倍数（8-128） |
+| `resolution_multiple` | INT | `8` | 对齐倍数（0-128，为 0 时不修正 target_size） |
 | `upscale_method` | COMBO | `lanczos` | 缩放算法：lanczos / bicubic / area / nearest |
 | `resize_and_pad` | BOOLEAN | `true` | 是否启用（关闭时旁路直通） |
 

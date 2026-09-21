@@ -100,7 +100,7 @@ Resize image proportionally and center-pad to a square canvas, while recording p
 |-----------|------|---------|-------------|
 | `input_image` | IMAGE | - | Input image |
 | `target_size` | INT | `1024` | Target size (64-8192, auto-snaps to resolution multiple) |
-| `resolution_multiple` | INT | `32` | Resolution multiple (8-128) |
+| `resolution_multiple` | INT | `8` | Resolution multiple (0-128, 0 disables target_size snapping) |
 | `upscale_method` | COMBO | `lanczos` | Upscale algorithm: lanczos / bicubic / area / nearest |
 | `resize_and_pad` | BOOLEAN | `true` | Enable/disable (bypass when disabled) |
 
