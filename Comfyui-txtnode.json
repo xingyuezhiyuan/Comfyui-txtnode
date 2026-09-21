@@ -111,11 +111,11 @@
         "title": "移除图像填充",
         "inputs": {
             "input_image": "输入图像",
-            "image_info": "图像信息",
-            "latent_scale": "Latent缩放因子"
+            "image_info": "图像信息"
         },
         "widgets": {
-            "remove_pad": "移除填充"
+            "remove_pad": "移除填充",
+            "latent_scale": "Latent缩放因子"
         },
         "outputs": {
             "output_image": "输出图像"
@@ -123,7 +123,7 @@
     },
     "GetImageFromPS": {
         "title": "从PS获取图像",
-        "inputs": {
+        "widgets": {
             "image_filename": "画布文件名",
             "mask_filename": "遮罩文件名"
         },
@@ -136,6 +136,9 @@
         "title": "发送图像到PS",
         "inputs": {
             "images": "图像"
+        },
+        "widgets": {
+            "client_id": "客户端ID"
         }
     }
 }
