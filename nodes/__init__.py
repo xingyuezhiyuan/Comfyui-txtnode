@@ -7,6 +7,7 @@ from .lora_loader_full_node import LoRALoaderFull
 from .lora_prompt_encoder import LoRAPromptEncoder
 from .ps_bridge import GetImageFromPS, SendImageToPS
 from .any_route import TxtNodeRouteBlocker, TxtNodeAnyExists
+from .mask_segs import MaskListToMaskBatchNode, MaskToSEGSNode, SegsToMaskListNode, SubtractMaskNode, AddMaskNode
 
 __all__ = [
     "SaveStringToTextNode",
@@ -21,4 +22,9 @@ __all__ = [
     "SendImageToPS",
     "TxtNodeRouteBlocker",
     "TxtNodeAnyExists",
+    "MaskListToMaskBatchNode",
+    "MaskToSEGSNode",
+    "SegsToMaskListNode",
+    "SubtractMaskNode",
+    "AddMaskNode",
 ]

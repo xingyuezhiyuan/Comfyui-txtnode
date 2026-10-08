@@ -13,6 +13,7 @@
  */
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { getWorkflowName } from "./utils/workflow-name.js";
 
 const SYNC_TIMEOUT_MS = 30000; // 等待 PS 同步的最大时长
 const TARGET_NODE = "GetImageFromPS";
@@ -159,7 +160,8 @@ async function syncBeforeRun() {
         const resp = await fetch("/txtnode/request_sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: "{}"
+            // 带上当前工作流名，后端透传到 sync_request，PS 插件据此常驻显示（ADR-0096）
+            body: JSON.stringify({ workflow_name: getWorkflowName(app) })
         });
         if (!resp.ok) {
             showToast("同步请求失败，使用已有图像继续", "rgba(180,90,0,0.9)");

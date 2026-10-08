@@ -140,5 +140,59 @@
         "widgets": {
             "client_id": "客户端ID"
         }
+    },
+    "MaskListToMaskBatchNode": {
+        "title": "遮罩列表到遮罩",
+        "inputs": {
+            "mask": "遮罩"
+        },
+        "outputs": {
+            "mask": "遮罩"
+        }
+    },
+    "MaskToSEGSNode": {
+        "title": "遮罩到Seg",
+        "inputs": {
+            "mask": "遮罩"
+        },
+        "widgets": {
+            "combined": "是否合并",
+            "crop_factor": "裁剪系数",
+            "bbox_fill": "填充BBBox",
+            "drop_size": "最小尺寸",
+            "contour_fill": "填充轮廓"
+        },
+        "outputs": {
+            "segs": "Seg"
+        }
+    },
+    "SegsToMaskListNode": {
+        "title": "Seg到遮罩列表",
+        "inputs": {
+            "segs": "Seg"
+        },
+        "outputs": {
+            "mask": "遮罩"
+        }
+    },
+    "SubtractMaskNode": {
+        "title": "遮罩相减",
+        "inputs": {
+            "mask1": "遮罩1",
+            "mask2": "遮罩2"
+        },
+        "outputs": {
+            "mask": "遮罩"
+        }
+    },
+    "AddMaskNode": {
+        "title": "遮罩相加",
+        "inputs": {
+            "mask1": "遮罩1",
+            "mask2": "遮罩2"
+        },
+        "outputs": {
+            "mask": "遮罩"
+        }
     }
 }
