@@ -1,0 +1,200 @@
+{
+    "nodeDefs": {
+        "SaveStringToTextNode": {
+            "title": "保存字符串到文本文件",
+            "inputs": {
+                "text": "文本"
+            },
+            "widgets": {
+                "file_name": "文件名",
+                "extension": "扩展名",
+                "encoding": "编码",
+                "save_mode": "保存模式",
+                "directory_path": "目录路径"
+            },
+            "outputs": {
+                "file_path": "文件路径"
+            }
+        },
+        "SaveImageToFolderNode": {
+            "title": "保存图像到文件夹",
+            "inputs": {
+                "images": "图像"
+            },
+            "widgets": {
+                "file_name": "文件名",
+                "image_format": "图像格式",
+                "output_folder": "输出文件夹"
+            },
+            "outputs": {
+                "folder_path": "文件夹路径"
+            }
+        },
+        "LoadTextFilesNode": {
+            "title": "从文件夹加载文本文件",
+            "widgets": {
+                "folder_path": "文件夹路径",
+                "max_files": "最大文件数",
+                "index": "索引"
+            },
+            "outputs": {
+                "text": "文本",
+                "file_name": "文件名"
+            }
+        },
+        "LoRALoaderModelOnly": {
+            "title": "LoRA加载器（仅模型）",
+            "inputs": {
+                "model": "模型",
+                "upstream_trigger_word": "上游触发词"
+            },
+            "widgets": {
+                "lora_name": "LoRA名称",
+                "strength_model": "模型强度",
+                "trigger_word": "触发词"
+            },
+            "outputs": {
+                "MODEL": "模型",
+                "trigger_word": "触发词"
+            }
+        },
+        "LoRALoaderFull": {
+            "title": "LoRA加载器（完整）",
+            "inputs": {
+                "model": "模型",
+                "clip": "CLIP",
+                "upstream_trigger_word": "上游触发词"
+            },
+            "widgets": {
+                "lora_name": "LoRA名称",
+                "strength_model": "模型强度",
+                "strength_clip": "CLIP强度",
+                "trigger_word": "触发词"
+            },
+            "outputs": {
+                "MODEL": "模型",
+                "CLIP": "CLIP",
+                "trigger_word": "触发词"
+            }
+        },
+        "LoRAPromptEncoder": {
+            "title": "LoRA提示词编码器",
+            "inputs": {
+                "model": "模型",
+                "clip": "CLIP",
+                "selected_loras": "已选LoRA",
+                "positive_prompt": "正面提示词（可不接）",
+                "negative_prompt": "负面提示词（可不接）"
+            },
+            "outputs": {
+                "MODEL": "模型",
+                "CONDITIONING": "正面条件",
+                "NEGATIVE_CONDITIONING": "负面条件"
+            }
+        },
+        "ResizeAndPadNode": {
+            "title": "调整图像尺寸填充",
+            "inputs": {
+                "input_image": "输入图像"
+            },
+            "widgets": {
+                "target_size": "目标尺寸",
+                "resolution_multiple": "对齐倍数",
+                "upscale_method": "缩放算法",
+                "resize_and_pad": "调整并填充"
+            },
+            "outputs": {
+                "output_image": "输出图像",
+                "image_info": "图像信息"
+            }
+        },
+        "RemovePadFromImageNode": {
+            "title": "移除图像填充",
+            "inputs": {
+                "input_image": "输入图像",
+                "image_info": "图像信息"
+            },
+            "widgets": {
+                "remove_pad": "移除填充",
+                "latent_scale": "Latent缩放因子"
+            },
+            "outputs": {
+                "output_image": "输出图像"
+            }
+        },
+        "GetImageFromPS": {
+            "title": "从PS获取图像",
+            "widgets": {
+                "image_filename": "画布文件名",
+                "mask_filename": "遮罩文件名"
+            },
+            "outputs": {
+                "image": "图像",
+                "mask": "遮罩"
+            }
+        },
+        "SendImageToPS": {
+            "title": "发送图像到PS",
+            "inputs": {
+                "images": "图像"
+            },
+            "widgets": {
+                "client_id": "客户端ID"
+            }
+        },
+        "MaskListToMaskBatchNode": {
+            "title": "遮罩列表到遮罩",
+            "inputs": {
+                "mask": "遮罩"
+            },
+            "outputs": {
+                "mask": "遮罩"
+            }
+        },
+        "MaskToSEGSNode": {
+            "title": "遮罩到Seg",
+            "inputs": {
+                "mask": "遮罩"
+            },
+            "widgets": {
+                "combined": "是否合并",
+                "crop_factor": "裁剪系数",
+                "bbox_fill": "填充BBBox",
+                "drop_size": "最小尺寸",
+                "contour_fill": "填充轮廓"
+            },
+            "outputs": {
+                "segs": "Seg"
+            }
+        },
+        "SegsToMaskListNode": {
+            "title": "Seg到遮罩列表",
+            "inputs": {
+                "segs": "Seg"
+            },
+            "outputs": {
+                "mask": "遮罩"
+            }
+        },
+        "SubtractMaskNode": {
+            "title": "遮罩相减",
+            "inputs": {
+                "mask1": "遮罩1",
+                "mask2": "遮罩2"
+            },
+            "outputs": {
+                "mask": "遮罩"
+            }
+        },
+        "AddMaskNode": {
+            "title": "遮罩相加",
+            "inputs": {
+                "mask1": "遮罩1",
+                "mask2": "遮罩2"
+            },
+            "outputs": {
+                "mask": "遮罩"
+            }
+        }
+    }
+}

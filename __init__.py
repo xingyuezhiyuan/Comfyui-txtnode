@@ -7,6 +7,7 @@ from .nodes import SaveStringToTextNode, SaveImageToFolderNode, LoadTextFilesNod
 from .nodes import ResizeAndPadNode, RemovePadFromImageNode
 from .nodes import LoRALoaderModelOnly, LoRALoaderFull, LoRAPromptEncoder
 from .nodes import GetImageFromPS, SendImageToPS
+from .nodes import MaskListToMaskBatchNode, MaskToSEGSNode, SegsToMaskListNode, SubtractMaskNode, AddMaskNode
 
 # 导入 server 模块注册 API 路由(装饰器在模块加载时自动注册)
 from . import server
@@ -26,6 +27,11 @@ class TxtNodeExtension(ComfyExtension):
             RemovePadFromImageNode,
             GetImageFromPS,
             SendImageToPS,
+            MaskListToMaskBatchNode,
+            MaskToSEGSNode,
+            SegsToMaskListNode,
+            SubtractMaskNode,
+            AddMaskNode,
         ]
 
 
