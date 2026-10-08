@@ -239,6 +239,23 @@ def setup_routes():
             """
             return web.json_response({"workflow_name": _current_workflow_name})
 
+        # ========== 能力探测 API（ADR-0099） ==========
+
+        @prompt_server.routes.get("/comfyui-txtnode/capabilities")
+        async def get_capabilities(request):
+            """返回本服务端支持的能力位，供 PS 插件探测（ADR-0099）。
+
+            当前能力位 no_mask_sentinel：纯黑遮罩场景（裁剪模式 / 无选区）插件可
+            跳过遮罩上传，改传该哨兵值；GetImageFromPS 识别后合成「与画布同尺寸的
+            全 0 遮罩」，语义等价于原先上传的纯黑 PNG。
+
+            旧版无此路由 → 404，插件自动回退为上传遮罩（功能零变化）。
+            哨兵字面量以本接口为真源，插件不硬编码。
+            """
+            from .nodes.ps_bridge import NO_MASK_SENTINEL
+
+            return web.json_response({"no_mask_sentinel": NO_MASK_SENTINEL})
+
         # ========== 预设工作流加载 API ==========
         # 白名单：只允许加载 workflow/ 目录下的指定工作流
         _allowed_workflows = {"web", "workflow", "sdxl工作流示例"}

@@ -31,6 +31,11 @@ _BASE64_CACHE_PER_CLIENT_MAX = 8
 CANVAS_FILENAME = "xyps_canvas.png"
 MASK_FILENAME = "xyps_mask.png"
 
+# 无遮罩哨兵（ADR-0099）：插件在纯黑遮罩场景（裁剪模式 / 无选区）跳过遮罩上传，
+# 改传此哨兵值；本节点识别后合成「与画布同尺寸的全 0 遮罩」，语义等价于原先的纯黑 PNG。
+# 注意：不能走"遮罩文件不存在 → 全白遮罩"的回退分支——那是**相反**语义。
+NO_MASK_SENTINEL = "__xyps_no_mask__"
+
 
 def _get_file_hash(filepath):
     """计算文件 MD5 哈希，用于变更检测。文件不存在时返回 None。"""
@@ -249,6 +254,7 @@ class GetImageFromPS(io.ComfyNode):
 
     支持按任务指定文件名（image_filename / mask_filename），用于局域网多用户隔离；
     为空时回退到固定文件名 xyps_canvas.png / xyps_mask.png（兼容浏览器前端直接运行的旧流程）。
+    mask_filename 为无遮罩哨兵时合成「与画布同尺寸的全 0 遮罩」（纯黑场景跳过上传，ADR-0099）。
     文件不存在时使用占位图（画布）和全白遮罩（mask）。
     节点背景显示画布+遮罩预览图。
     """
@@ -276,12 +282,16 @@ class GetImageFromPS(io.ComfyNode):
         """检测画布或遮罩文件是否变化，触发重新执行。
 
         支持按任务指定文件名：为空时回退到固定文件名。
+        无遮罩哨兵无文件可哈希 → 视为"遮罩已变化"（返回 NaN，始终重新执行，安全）。
         """
         input_dir = folder_paths.get_input_directory()
         canvas_path = os.path.join(input_dir, image_filename or CANVAS_FILENAME)
-        mask_path = os.path.join(input_dir, mask_filename or MASK_FILENAME)
         canvas_changed = _is_file_changed(canvas_path)
-        mask_changed = _is_file_changed(mask_path)
+        if mask_filename == NO_MASK_SENTINEL:
+            mask_changed = True
+        else:
+            mask_path = os.path.join(input_dir, mask_filename or MASK_FILENAME)
+            mask_changed = _is_file_changed(mask_path)
         if canvas_changed or mask_changed:
             return float("NaN")  # 返回 NaN 表示"始终需要重新执行"
         return False
@@ -333,36 +343,42 @@ class GetImageFromPS(io.ComfyNode):
         print(f"[GetImageFromPS] IMAGE 张量形状: {image_tensor.shape}")
 
         # 5. 处理遮罩
-        print(f"[GetImageFromPS] 查找遮罩: {mask_path}")
-        if os.path.isfile(mask_path):
-            mask_pil = Image.open(mask_path)
-            print(f"[GetImageFromPS] 遮罩加载成功: 尺寸={mask_pil.size}, 模式={mask_pil.mode}")
-            if mask_pil.mode != "RGB":
-                mask_pil = mask_pil.convert("RGB")
-            mask_np = np.array(mask_pil).astype(np.float32)
-            # 取红色通道作为灰度遮罩，归一化到 [0, 1]
-            mask_arr = mask_np[:, :, 0] / 255.0
-            print(f"[GetImageFromPS] 遮罩红色通道提取完成，值域: [{mask_arr.min():.4f}, {mask_arr.max():.4f}]")
-            # 缩放遮罩至画布尺寸（如果需要）
-            if mask_arr.shape[0] != canvas_h or mask_arr.shape[1] != canvas_w:
-                print(f"[GetImageFromPS] 遮罩尺寸不匹配，正在缩放...")
-                mask_pil_resized = Image.fromarray(
-                    (mask_arr * 255.0).astype(np.uint8)
-                ).resize((canvas_w, canvas_h), resample=Image.LANCZOS)
-                mask_arr = np.array(mask_pil_resized).astype(np.float32) / 255.0
+        if mask_filename == NO_MASK_SENTINEL:
+            # 无遮罩哨兵（ADR-0099）：插件在纯黑遮罩场景跳过上传，这里合成同尺寸全 0 遮罩。
+            # 绝不能走下方"文件不存在 → 全白遮罩"分支——那是相反语义。
+            print(f"[GetImageFromPS] 收到无遮罩哨兵，合成全 0 遮罩 ({canvas_w}x{canvas_h})")
+            mask_arr = np.zeros((canvas_h, canvas_w), dtype=np.float32)
         else:
-            print(f"[GetImageFromPS] 遮罩文件不存在，生成全白遮罩")
-            mask_arr = np.ones((canvas_h, canvas_w), dtype=np.float32)
-            print(f"[GetImageFromPS] 全白遮罩尺寸: {canvas_w}x{canvas_h}")
-            # 将全白遮罩保存到 input 目录，供 ComfyUI 前端 nodestyle.js 加载预览
-            try:
-                white_mask_pil = Image.fromarray(
-                    (mask_arr * 255.0).astype(np.uint8), mode="L"
-                ).convert("RGB")
-                white_mask_pil.save(mask_path, format="PNG")
-                print(f"[GetImageFromPS] 全白遮罩已保存至: {mask_path}")
-            except Exception as e:
-                print(f"[GetImageFromPS] 全白遮罩保存失败: {e}")
+            print(f"[GetImageFromPS] 查找遮罩: {mask_path}")
+            if os.path.isfile(mask_path):
+                mask_pil = Image.open(mask_path)
+                print(f"[GetImageFromPS] 遮罩加载成功: 尺寸={mask_pil.size}, 模式={mask_pil.mode}")
+                if mask_pil.mode != "RGB":
+                    mask_pil = mask_pil.convert("RGB")
+                mask_np = np.array(mask_pil).astype(np.float32)
+                # 取红色通道作为灰度遮罩，归一化到 [0, 1]
+                mask_arr = mask_np[:, :, 0] / 255.0
+                print(f"[GetImageFromPS] 遮罩红色通道提取完成，值域: [{mask_arr.min():.4f}, {mask_arr.max():.4f}]")
+                # 缩放遮罩至画布尺寸（如果需要）
+                if mask_arr.shape[0] != canvas_h or mask_arr.shape[1] != canvas_w:
+                    print(f"[GetImageFromPS] 遮罩尺寸不匹配，正在缩放...")
+                    mask_pil_resized = Image.fromarray(
+                        (mask_arr * 255.0).astype(np.uint8)
+                    ).resize((canvas_w, canvas_h), resample=Image.LANCZOS)
+                    mask_arr = np.array(mask_pil_resized).astype(np.float32) / 255.0
+            else:
+                print(f"[GetImageFromPS] 遮罩文件不存在，生成全白遮罩")
+                mask_arr = np.ones((canvas_h, canvas_w), dtype=np.float32)
+                print(f"[GetImageFromPS] 全白遮罩尺寸: {canvas_w}x{canvas_h}")
+                # 将全白遮罩保存到 input 目录，供 ComfyUI 前端 nodestyle.js 加载预览
+                try:
+                    white_mask_pil = Image.fromarray(
+                        (mask_arr * 255.0).astype(np.uint8), mode="L"
+                    ).convert("RGB")
+                    white_mask_pil.save(mask_path, format="PNG")
+                    print(f"[GetImageFromPS] 全白遮罩已保存至: {mask_path}")
+                except Exception as e:
+                    print(f"[GetImageFromPS] 全白遮罩保存失败: {e}")
 
         # 6. 转换为 ComfyUI MASK 张量 [1, H, W]
         mask_tensor = torch.from_numpy(mask_arr).unsqueeze(0)

@@ -307,7 +307,7 @@ Requires a companion Photoshop UXP plugin; image transfer happens through file e
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `image_filename` | STRING | `""` | Canvas file name (optional, default `xyps_canvas.png`) |
-| `mask_filename` | STRING | `""` | Mask file name (optional, default `xyps_mask.png`) |
+| `mask_filename` | STRING | `""` | Mask file name (optional, default `xyps_mask.png`); the sentinel value `__xyps_no_mask__` means "no mask" — the node synthesizes an all-zero mask sized to the canvas |
 
 **Output**: `image` — canvas image, `mask` — mask (red channel extracted as grayscale)
 
@@ -316,6 +316,7 @@ Requires a companion Photoshop UXP plugin; image transfer happens through file e
 2. The node auto-detects file changes and triggers re-execution — no manual refresh needed
 3. When files don't exist, a gray checkerboard placeholder and an all-white mask are used so the workflow won't error
 4. For multi-user LAN setups, assign different file names per user to isolate them
+5. No-mask sentinel (`__xyps_no_mask__`): when the mask is always pure black (crop mode / no selection), the UXP plugin skips the mask upload and sends this sentinel instead; the node then synthesizes an all-zero mask sized to the canvas — semantically identical to the previous pure-black PNG, but without the upload. The literal is advertised by `GET /comfyui-txtnode/capabilities` (server is the source of truth) and probed automatically; older servers without that route keep receiving an uploaded mask, so behavior is unchanged
 
 ### Send Image to PS (发送图像到PS)
 
