@@ -194,5 +194,14 @@
         "outputs": {
             "mask": "遮罩"
         }
+    },
+    "IntJudgeNode": {
+        "title": "整数判断",
+        "inputs": {
+            "input_value": "输入整数"
+        },
+        "outputs": {
+            "output_value": "输出整数"
+        }
     }
 }
