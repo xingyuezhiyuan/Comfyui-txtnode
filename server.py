@@ -14,6 +14,8 @@ from .nodes import trigger_word_manager
 MAX_PREVIEW_SIDE = 512
 # JPG 保存质量
 PREVIEW_JPG_QUALITY = 85
+# 结果图缩小预览的默认最长边（ADR-0100，插件默认按 1024 请求）
+DEFAULT_RESIZED_MAX_SIDE = 1024
 
 
 def resize_image_if_needed(image_path):
@@ -255,6 +257,73 @@ def setup_routes():
             from .nodes.ps_bridge import NO_MASK_SENTINEL
 
             return web.json_response({"no_mask_sentinel": NO_MASK_SENTINEL})
+
+        # ========== 结果图缩小预览 API（ADR-0100） ==========
+
+        @prompt_server.routes.get("/comfyui-txtnode/view_resized")
+        async def view_resized(request):
+            """返回 output 目录下指定图片的「缩小预览」，供 PS 插件显示大预览图。
+
+            为什么由服务端缩放：PS 插件（UXP Host）没有 canvas，把已编码的图片字节
+            缩小只能开关一个临时 PS 文档，会让 PS 标签页闪烁一下。这里用 PIL 做普通
+            图像处理，插件只下小图 → 完全不闪。
+
+            查询参数:
+                filename: output 目录下的文件名（如 SendImageToPS_00000_.png）
+                max:      最长边上限（默认 1024，夹在 64~4096）
+
+            语义:
+                最长边 > max  → 等比缩放并转 JPEG(q=85) 返回；
+                最长边 ≤ max  → 原样返回原文件（无损、不重编码）；
+                文件不存在    → 404；参数非法/路径越界 → 400（插件静默回退本地降采样）。
+            旧版服务端无此路由 → 404，插件自动回退为本地降采样。
+            """
+            try:
+                filename = (request.rel_url.query.get("filename", "") or "").strip()
+                if not filename:
+                    return web.json_response({"error": "缺少 filename 参数"}, status=400)
+
+                output_dir = os.path.abspath(folder_paths.get_output_directory())
+                file_path = os.path.abspath(os.path.join(output_dir, filename))
+                # 防目录穿越：解析后必须仍在 output 目录内
+                if not file_path.startswith(output_dir + os.sep):
+                    return web.json_response({"error": "非法路径"}, status=400)
+                if not os.path.isfile(file_path):
+                    return web.json_response({"error": f"文件不存在: {filename}"}, status=404)
+
+                try:
+                    max_side = int(request.rel_url.query.get("max", DEFAULT_RESIZED_MAX_SIDE))
+                except (TypeError, ValueError):
+                    max_side = DEFAULT_RESIZED_MAX_SIDE
+                max_side = max(64, min(max_side, 4096))
+
+                with Image.open(file_path) as img:
+                    w, h = img.size
+                    longest = max(w, h)
+                    # 小图：原样返回（无损、不重编码）
+                    if longest <= max_side:
+                        return web.FileResponse(file_path)
+
+                    ratio = max_side / float(longest)
+                    new_w = max(1, int(round(w * ratio)))
+                    new_h = max(1, int(round(h * ratio)))
+                    # 转 RGB（处理 RGBA/P 模式；JPEG 无 Alpha 通道）
+                    if img.mode not in ("RGB", "L"):
+                        img = img.convert("RGB")
+                    img = img.resize((new_w, new_h), Image.LANCZOS)
+
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=PREVIEW_JPG_QUALITY, optimize=True)
+                    data = buf.getvalue()
+                    print(
+                        f"[view_resized] {filename} {w}x{h} → {new_w}x{new_h} "
+                        f"({len(data)} bytes)"
+                    )
+                    return web.Response(body=data, content_type="image/jpeg")
+
+            except Exception as e:
+                print(f"[view_resized] 缩小预览失败: {e}")
+                return web.json_response({"error": str(e)}, status=500)
 
         # ========== 预设工作流加载 API ==========
         # 白名单：只允许加载 workflow/ 目录下的指定工作流
