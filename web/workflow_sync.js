@@ -8,6 +8,7 @@
  */
 
 import { app } from "../../../scripts/app.js";
+import { getWorkflowName } from "./utils/workflow-name.js";
 
 const SYNC_DELAY_MS = 1500; // 防抖延迟
 const API_PATH = "/comfyui-txtnode/save_workflow";
@@ -48,10 +49,18 @@ app.registerExtension({
                     return;
                 }
 
+                // 当前工作流名（文件名/标签名），供 PS 插件在预览区常驻显示（ADR-0096）；
+                // 取不到时为空串，后端保留上一次的有效名字
+                const wfName = getWorkflowName(app);
+                console.log("[WorkflowSync] 当前工作流名: " + (wfName || "（未取到）"));
+
                 const resp = await fetch(API_PATH, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ workflow: workflow })
+                    body: JSON.stringify({
+                        workflow: workflow,
+                        workflow_name: wfName
+                    })
                 });
 
                 if (resp.ok) {

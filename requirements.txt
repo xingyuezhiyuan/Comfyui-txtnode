@@ -6,3 +6,4 @@ Pillow
 numpy
 aiohttp
 typing_extensions
+opencv-python-headless

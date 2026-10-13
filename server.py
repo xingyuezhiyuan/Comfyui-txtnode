@@ -14,6 +14,8 @@ from .nodes import trigger_word_manager
 MAX_PREVIEW_SIDE = 512
 # JPG 保存质量
 PREVIEW_JPG_QUALITY = 85
+# 结果图缩小预览的默认最长边（ADR-0100，插件默认按 1024 请求）
+DEFAULT_RESIZED_MAX_SIDE = 1024
 
 
 def resize_image_if_needed(image_path):
@@ -127,6 +129,9 @@ def setup_routes():
         # ========== 工作流同步 API ==========
         # 内存中暂存当前工作流（仅供 UXP 插件通过 HTTP 拉取）
         _current_workflow = {}
+        # 当前工作流名（文件名/标签名，如「线稿」）。供 PS 插件在预览区常驻显示（ADR-0096）：
+        # 前端取不到有效名时上报空串，此时保留上一次的有效名，避免名字被清空。
+        _current_workflow_name = ""
 
         @prompt_server.routes.post("/comfyui-txtnode/save_workflow")
         async def save_workflow(request):
@@ -144,14 +149,19 @@ def setup_routes():
                         status=400
                     )
 
-                nonlocal _current_workflow
+                nonlocal _current_workflow, _current_workflow_name
                 _current_workflow = workflow
+                # 工作流名：仅在非空时更新，取不到名字的同步不覆盖上一次的有效名（ADR-0096）
+                workflow_name = str(data.get("workflow_name") or "").strip()
+                if workflow_name:
+                    _current_workflow_name = workflow_name
                 node_count = len(workflow) if isinstance(workflow, dict) else 0
-                print(f"[Comfyui-txtnode] 工作流已同步，共 {node_count} 个节点")
+                print(f"[Comfyui-txtnode] 工作流已同步，共 {node_count} 个节点，名称: {_current_workflow_name or '（未提供）'}")
 
                 return web.json_response({
                     "success": True,
-                    "node_count": node_count
+                    "node_count": node_count,
+                    "workflow_name": _current_workflow_name
                 })
 
             except Exception as e:
@@ -179,7 +189,9 @@ def setup_routes():
                 node_count = len(_current_workflow) if isinstance(_current_workflow, dict) else 0
                 return web.json_response({
                     "workflow": _current_workflow,
-                    "node_count": node_count
+                    "node_count": node_count,
+                    # 当前工作流名（可能为空串：前端未提供名字），PS 插件据此常驻显示（ADR-0096）
+                    "workflow_name": _current_workflow_name
                 })
 
             except Exception as e:
@@ -188,6 +200,130 @@ def setup_routes():
                     {"error": str(e)},
                     status=500
                 )
+
+        # ========== 当前工作流名实时同步 API（ADR-0097） ==========
+
+        @prompt_server.routes.post("/comfyui-txtnode/set_workflow_name")
+        async def set_workflow_name(request):
+            """同步当前工作流名并立即广播给 PS 客户端。
+
+            ComfyUI 前端（workflow_name_sync.js）在页面加载后、以及检测到
+            当前工作流变化时调用；后端更新名字并经 /txtnode/ws 广播
+            {"type": "workflow_name", "workflow_name": ...}，PS 插件据此
+            实时更新预览区左上角的常驻徽标，无需运行。
+
+            允许空串：空串 = 当前工作流没有有效名字（插件据此清空徽标）。
+
+            Body: {"workflow_name": "线稿"}
+            """
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+            name = str((data or {}).get("workflow_name") or "").strip()
+
+            nonlocal _current_workflow_name
+            _current_workflow_name = name
+            print(f"[Comfyui-txtnode] 当前工作流名已更新: {name or '（无名字）'}")
+
+            try:
+                await _broadcast_to_ps({"type": "workflow_name", "workflow_name": name})
+            except Exception as e:
+                print(f"[Comfyui-txtnode] 广播工作流名失败: {e}")
+
+            return web.json_response({"success": True, "workflow_name": name})
+
+        @prompt_server.routes.get("/comfyui-txtnode/get_workflow_name")
+        async def get_workflow_name(request):
+            """获取当前工作流名（轻量，不返回工作流本体）。
+
+            供 PS 插件在 Web 网页面板激活时轮询兜底（ADR-0097）。
+            """
+            return web.json_response({"workflow_name": _current_workflow_name})
+
+        # ========== 能力探测 API（ADR-0099） ==========
+
+        @prompt_server.routes.get("/comfyui-txtnode/capabilities")
+        async def get_capabilities(request):
+            """返回本服务端支持的能力位，供 PS 插件探测（ADR-0099）。
+
+            当前能力位 no_mask_sentinel：纯黑遮罩场景（裁剪模式 / 无选区）插件可
+            跳过遮罩上传，改传该哨兵值；GetImageFromPS 识别后合成「与画布同尺寸的
+            全 0 遮罩」，语义等价于原先上传的纯黑 PNG。
+
+            旧版无此路由 → 404，插件自动回退为上传遮罩（功能零变化）。
+            哨兵字面量以本接口为真源，插件不硬编码。
+            """
+            from .nodes.ps_bridge import NO_MASK_SENTINEL
+
+            return web.json_response({"no_mask_sentinel": NO_MASK_SENTINEL})
+
+        # ========== 结果图缩小预览 API（ADR-0100） ==========
+
+        @prompt_server.routes.get("/comfyui-txtnode/view_resized")
+        async def view_resized(request):
+            """返回 output 目录下指定图片的「缩小预览」，供 PS 插件显示大预览图。
+
+            为什么由服务端缩放：PS 插件（UXP Host）没有 canvas，把已编码的图片字节
+            缩小只能开关一个临时 PS 文档，会让 PS 标签页闪烁一下。这里用 PIL 做普通
+            图像处理，插件只下小图 → 完全不闪。
+
+            查询参数:
+                filename: output 目录下的文件名（如 SendImageToPS_00000_.png）
+                max:      最长边上限（默认 1024，夹在 64~4096）
+
+            语义:
+                最长边 > max  → 等比缩放并转 JPEG(q=85) 返回；
+                最长边 ≤ max  → 原样返回原文件（无损、不重编码）；
+                文件不存在    → 404；参数非法/路径越界 → 400（插件静默回退本地降采样）。
+            旧版服务端无此路由 → 404，插件自动回退为本地降采样。
+            """
+            try:
+                filename = (request.rel_url.query.get("filename", "") or "").strip()
+                if not filename:
+                    return web.json_response({"error": "缺少 filename 参数"}, status=400)
+
+                output_dir = os.path.abspath(folder_paths.get_output_directory())
+                file_path = os.path.abspath(os.path.join(output_dir, filename))
+                # 防目录穿越：解析后必须仍在 output 目录内
+                if not file_path.startswith(output_dir + os.sep):
+                    return web.json_response({"error": "非法路径"}, status=400)
+                if not os.path.isfile(file_path):
+                    return web.json_response({"error": f"文件不存在: {filename}"}, status=404)
+
+                try:
+                    max_side = int(request.rel_url.query.get("max", DEFAULT_RESIZED_MAX_SIDE))
+                except (TypeError, ValueError):
+                    max_side = DEFAULT_RESIZED_MAX_SIDE
+                max_side = max(64, min(max_side, 4096))
+
+                with Image.open(file_path) as img:
+                    w, h = img.size
+                    longest = max(w, h)
+                    # 小图：原样返回（无损、不重编码）
+                    if longest <= max_side:
+                        return web.FileResponse(file_path)
+
+                    ratio = max_side / float(longest)
+                    new_w = max(1, int(round(w * ratio)))
+                    new_h = max(1, int(round(h * ratio)))
+                    # 转 RGB（处理 RGBA/P 模式；JPEG 无 Alpha 通道）
+                    if img.mode not in ("RGB", "L"):
+                        img = img.convert("RGB")
+                    img = img.resize((new_w, new_h), Image.LANCZOS)
+
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=PREVIEW_JPG_QUALITY, optimize=True)
+                    data = buf.getvalue()
+                    print(
+                        f"[view_resized] {filename} {w}x{h} → {new_w}x{new_h} "
+                        f"({len(data)} bytes)"
+                    )
+                    return web.Response(body=data, content_type="image/jpeg")
+
+            except Exception as e:
+                print(f"[view_resized] 缩小预览失败: {e}")
+                return web.json_response({"error": str(e)}, status=500)
 
         # ========== 预设工作流加载 API ==========
         # 白名单：只允许加载 workflow/ 目录下的指定工作流
@@ -332,6 +468,12 @@ def setup_routes():
             """
             try:
                 request_id = str(uuid.uuid4())
+                # 工作流名（可能缺省/空串）：前端随请求上报，透传给 PS 插件常驻显示（ADR-0096）
+                try:
+                    body = await request.json()
+                except Exception:
+                    body = {}
+                workflow_name = str((body or {}).get("workflow_name") or "").strip()
                 # 请求方 IP：优先 request.remote（直连场景）；反代/NAT 下经 X-Forwarded-For 透传则取首个 IP（ADO-0036）
                 requester_ip = request.remote or ""
                 xff = request.headers.get("X-Forwarded-For", "")
@@ -352,13 +494,15 @@ def setup_routes():
                 if target is not None:
                     await target["ws"].send_json({
                         "type": "sync_request",
-                        "request_id": request_id
+                        "request_id": request_id,
+                        "workflow_name": workflow_name
                     })
-                    print(f"[Comfyui-txtnode] 同步请求已定向发送: {request_id} → {target['clientId']}（请求方IP {requester_ip}）")
+                    print(f"[Comfyui-txtnode] 同步请求已定向发送: {request_id} → {target['clientId']}（请求方IP {requester_ip}，工作流名 {workflow_name or '（未提供）'}）")
                 elif client_count > 0:
                     await _broadcast_to_ps({
                         "type": "sync_request",
-                        "request_id": request_id
+                        "request_id": request_id,
+                        "workflow_name": workflow_name
                     })
                     print(f"[Comfyui-txtnode] 同步请求已广播(无IP匹配): {request_id}（PS 客户端 {client_count} 个）")
                 else:
