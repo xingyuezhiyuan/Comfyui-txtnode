@@ -203,5 +203,17 @@
         "outputs": {
             "output_value": "输出整数"
         }
+    },
+    "L0SmoothNode": {
+        "title": "L0 平滑去鳞纹",
+        "inputs": {
+            "image": "图像"
+        },
+        "widgets": {
+            "lam": "平滑强度"
+        },
+        "outputs": {
+            "image": "图像"
+        }
     }
 }

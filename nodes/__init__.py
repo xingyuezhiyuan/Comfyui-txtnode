@@ -9,6 +9,7 @@ from .ps_bridge import GetImageFromPS, SendImageToPS
 from .any_route import TxtNodeRouteBlocker, TxtNodeAnyExists
 from .mask_segs import MaskListToMaskBatchNode, MaskToSEGSNode, SegsToMaskListNode, SubtractMaskNode, AddMaskNode
 from .int_judge import IntJudgeNode
+from .l0_smooth import L0SmoothNode
 
 __all__ = [
     "SaveStringToTextNode",
@@ -29,4 +30,5 @@ __all__ = [
     "SubtractMaskNode",
     "AddMaskNode",
     "IntJudgeNode",
+    "L0SmoothNode",
 ]
