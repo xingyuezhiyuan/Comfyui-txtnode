@@ -31,6 +31,7 @@ Double-click the canvas or right-click → Add Node, then search by node name (t
 | Load Text Files from Folder | `Utils` | Load .txt files by index for batch processing with a for loop |
 | Resize and Pad Image (调整图像尺寸填充) | `txtnode` | Proportionally resize and center-pad to a square canvas |
 | Remove Pad from Image (移除图像填充) | `txtnode` | Crop padding via metadata, restore original size |
+| L0 Smooth (L0 平滑去鳞纹) | `txtnode` | L0 gradient-minimization smoothing: flatten GPT fish-scale texture without softening lines |
 | LoRA Loader Model Only (LoRA加载器(仅模型)) | `loaders/lora` | Apply LoRA to model only, with trigger word management |
 | LoRA Loader Full (LoRA加载器(完整)) | `loaders/lora` | Apply LoRA to both model and CLIP |
 | LoRA Prompt Encoder (LoRA提示词编码器) | `loaders/lora` | Multi-LoRA selection + prompt editing + CLIP encoding in one node |
@@ -148,6 +149,25 @@ Double-click the canvas or right-click → Add Node, then search by node name (t
 1. Latent-space processing (e.g. KSampler) may change the image size; this node rescales the crop coordinates by the ratio of the current size to `original_size` automatically
 2. If the latent-derived scale is off, set `latent_scale` manually: when it matches the computed value within a 10% tolerance, the manual value takes precedence
 3. With invalid metadata or zero padding, the image passes through untouched instead of raising an error
+
+### L0 Smooth (L0 平滑去鳞纹)
+
+**What it does**: L0 gradient minimization smoothing (Xu et al. 2011). Small ripples inside flat color areas collapse into a single flat tone, while lines and color edges with large jumps are left untouched. It is a pure optimization — no new detail is invented. Use it to clean the dense fish-scale texture that GPT image models (gpt-image-2 / 2.5 / 2.6, ChatGPT, Codex image_gen) leave in anime and TV-anime style images.
+
+**Wiring**: Connect the upstream image to `image`; route the `image` output downstream. This node only performs the smoothing step — the full denoise recipe is "downscale to 60% → anime upscaler back to original size → this node", and the first two steps are not provided by this plugin.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image` | IMAGE | - | Input image (batches supported) |
+| `lam` | FLOAT | `0.001` | Smoothing strength (0-0.02, step 0.0001; 0 skips smoothing and passes the image through) |
+
+**Output**: `image` — smoothed image, same size as the input
+
+**Steps**:
+1. The default `0.001` is the recommended value for anime / TV-anime styles; it also works on photorealistic images
+2. Texture still visible → raise to `0.0015`–`0.002`; soft shadows, blush or fine gradients get flattened or banded → lower to `0.0005`–`0.0007` (`0.01` was measured to wipe out blush)
+3. Changing only `lam` keeps the upstream result cached, so only this node re-runs
+4. With a GPU the FFT runs on it in float32; without one it falls back to the CPU. Compared with the reference implementation (float64 on CPU / CUDA), a handful of pixels differ by 1–2 levels
 
 ---
 
