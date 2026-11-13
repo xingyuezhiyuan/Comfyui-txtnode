@@ -2,7 +2,7 @@
   "id": "b7d1f0c4-3a52-4e8f-9c61-5d2e7a9b0c13",
   "revision": 0,
   "last_node_id": 12,
-  "last_link_id": 15,
+  "last_link_id": 16,
   "nodes": [
     {
       "id": 1,
@@ -40,6 +40,7 @@
       ],
       "outputs": [
         {
+          "label": "图像",
           "name": "IMAGE",
           "type": "IMAGE",
           "slot_index": 0,
@@ -54,20 +55,18 @@
           "name": "MASK",
           "type": "MASK",
           "slot_index": 1,
-          "links": [
-            10
-          ]
+          "links": []
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.39.2",
-        "Node name for S&R": "LoadImage",
         "ue_properties": {
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2",
+        "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
         "hlbt40.png",
@@ -120,6 +119,7 @@
       ],
       "outputs": [
         {
+          "label": "图像",
           "name": "IMAGE",
           "type": "IMAGE",
           "slot_index": 0,
@@ -129,14 +129,14 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.39.2",
-        "Node name for S&R": "ImageScaleBy",
         "ue_properties": {
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2",
+        "Node name for S&R": "ImageScaleBy"
       },
       "widgets_values": [
         "area",
@@ -151,8 +151,8 @@
       "id": 3,
       "type": "UpscaleModelLoader",
       "pos": [
-        100.12491689506288,
-        342.6346521016742
+        112.95914149399324,
+        311.61860932092605
       ],
       "size": [
         397.57257466221967,
@@ -184,14 +184,14 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.39.2",
-        "Node name for S&R": "UpscaleModelLoader",
         "ue_properties": {
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2",
+        "Node name for S&R": "UpscaleModelLoader"
       },
       "widgets_values": [
         "RealESRGAN_x4plus_anime_6B.pth"
@@ -204,8 +204,8 @@
       "id": 4,
       "type": "ImageUpscaleWithModel",
       "pos": [
-        652.16422857648,
-        124.31431475670702
+        624.3567419454646,
+        22.71003668184227
       ],
       "size": [
         280,
@@ -230,6 +230,7 @@
       ],
       "outputs": [
         {
+          "label": "图像",
           "name": "IMAGE",
           "type": "IMAGE",
           "slot_index": 0,
@@ -239,14 +240,14 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.39.2",
-        "Node name for S&R": "ImageUpscaleWithModel",
         "ue_properties": {
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2",
+        "Node name for S&R": "ImageUpscaleWithModel"
       }
     },
     {
@@ -299,17 +300,15 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.39.2",
-        "Node name for S&R": "GetImageSize",
         "ue_properties": {
           "widget_ue_connectable": {},
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [],
-      "widgets_values_named": {}
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2",
+        "Node name for S&R": "GetImageSize"
+      }
     },
     {
       "id": 6,
@@ -371,6 +370,7 @@
       ],
       "outputs": [
         {
+          "label": "图像",
           "name": "IMAGE",
           "type": "IMAGE",
           "slot_index": 0,
@@ -380,9 +380,6 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.39.2",
-        "Node name for S&R": "ImageScale",
         "ue_properties": {
           "widget_ue_connectable": {
             "width": true,
@@ -390,7 +387,10 @@
           },
           "version": "7.8",
           "input_ue_unconnectable": {}
-        }
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.39.2",
+        "Node name for S&R": "ImageScale"
       },
       "widgets_values": [
         "lanczos",
@@ -406,60 +406,11 @@
       }
     },
     {
-      "id": 8,
-      "type": "JoinImageWithAlpha",
-      "pos": [
-        1737.926520758043,
-        5.192919621176172
-      ],
-      "size": [
-        240,
-        46
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "label": "图像",
-          "name": "image",
-          "type": "IMAGE",
-          "link": 13
-        },
-        {
-          "label": "透明遮罩",
-          "name": "alpha",
-          "type": "MASK",
-          "link": 10
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "slot_index": 0,
-          "links": [
-            14
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.39.2",
-        "Node name for S&R": "JoinImageWithAlpha",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      }
-    },
-    {
       "id": 10,
       "type": "Note",
       "pos": [
-        -263.2545111384254,
-        590.1528287389729
+        -321.0085218336117,
+        592.2918661721278
       ],
       "size": [
         500,
@@ -491,8 +442,8 @@
       "id": 11,
       "type": "L0SmoothNode",
       "pos": [
-        1439.685735381414,
-        3.6649618390321166
+        1431.4504412637668,
+        -3.393861690379537
       ],
       "size": [
         270,
@@ -513,14 +464,15 @@
           "name": "image",
           "type": "IMAGE",
           "links": [
-            13
+            16
           ]
         }
       ],
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
+          "input_ue_unconnectable": {},
+          "version": "7.8"
         },
         "aux_id": "xingyuezhiyuan/Comfyui-txtnode",
         "ver": "f3f3b98e47a42a42bca46bc517ac1cc8952de7de",
@@ -537,15 +489,15 @@
       "id": 12,
       "type": "Image Comparer (rgthree)",
       "pos": [
-        2472.474182997739,
-        49.96599018489865
+        1772.4741829977504,
+        -11.210480403335675
       ],
       "size": [
         1033.5294117647009,
         723.8823529411724
       ],
       "flags": {},
-      "order": 9,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -553,7 +505,7 @@
           "label": "图像_A",
           "name": "image_a",
           "type": "IMAGE",
-          "link": 14
+          "link": 16
         },
         {
           "dir": 3,
@@ -575,7 +527,8 @@
       "properties": {
         "ue_properties": {
           "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
+          "input_ue_unconnectable": {},
+          "version": "7.8"
         },
         "cnr_id": "rgthree-comfy",
         "ver": "2c5342a8cb0eaecaabf61435a5f37dd594c510ba",
@@ -657,14 +610,6 @@
       "IMAGE"
     ],
     [
-      10,
-      1,
-      1,
-      8,
-      1,
-      "MASK"
-    ],
-    [
       5,
       5,
       0,
@@ -689,27 +634,19 @@
       "IMAGE"
     ],
     [
-      13,
-      11,
-      0,
-      8,
-      0,
-      "IMAGE"
-    ],
-    [
-      14,
-      8,
-      0,
-      12,
-      0,
-      "IMAGE"
-    ],
-    [
       15,
       1,
       0,
       12,
       1,
+      "IMAGE"
+    ],
+    [
+      16,
+      11,
+      0,
+      12,
+      0,
       "IMAGE"
     ]
   ],
@@ -717,20 +654,22 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.43618440049610696,
+      "scale": 0.3604829756166178,
       "offset": [
-        1541.5361188505137,
-        683.7740915340225
+        1283.5480272775958,
+        935.5941122947185
       ]
     },
     "ue_links": [],
     "links_added_by_ue": [],
-    "frontendVersion": "1.53.10",
+    "frontendVersion": "1.55.18",
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,
     "VHS_KeepIntermediate": true
   },
-  "version": 0.4,
-  "seed_widgets": {}
+  "extensions": {
+    "seed_widgets": {}
+  },
+  "version": 0.4
 }
