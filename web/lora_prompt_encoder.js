@@ -342,6 +342,7 @@ async function initNodeUI(node) {
             display: "flex",
             flexDirection: "column",
             gap: "4px",
+            position: "relative",
         },
     });
     selectedContainer.appendChild(selectedList);
@@ -866,16 +867,242 @@ async function initNodeUI(node) {
         return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     }
 
+    // ===== 已选列表拖拽排序 =====
+    // 拖拽期间不重建 DOM（重建会丢指针捕获），只移动插入指示线，松手后提交一次
+    let dragState = null; // { name, row, startX, startY, active, insertIndex }
+    let dragLine = null;  // 插入指示线
+    let dragScrollRAF = null;
+    let dragClientX = 0;
+    let dragClientY = 0;
+
     /**
-     * 调整已选 LoRA 顺序（delta = -1 上移，1 下移）
+     * 按下手柄，准备拖拽（移动超过 3px 才正式进入拖拽态）
+     */
+    function startDrag(e, name, row) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        dragState = { name, row, startX: e.clientX, startY: e.clientY, active: false, insertIndex: null, ghost: null };
+        dragClientX = e.clientX;
+        dragClientY = e.clientY;
+
+        document.addEventListener("pointermove", onDragMove, true);
+        document.addEventListener("pointerup", onDragEnd, true);
+        document.addEventListener("pointercancel", onDragEnd, true);
+        document.addEventListener("keydown", onDragKeyDown, true);
+    }
+
+    function onDragMove(e) {
+        if (!dragState) return;
+        dragClientX = e.clientX;
+        dragClientY = e.clientY;
+
+        if (!dragState.active) {
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (Math.hypot(dx, dy) < 3) return;
+
+            // 超过阈值才进入拖拽态，避免误触
+            dragState.active = true;
+            dragState.row.style.opacity = "0.25";
+
+            // 记录抓取点相对行的偏移，保证浮起卡片跟手
+            const rowRect = dragState.row.getBoundingClientRect();
+            dragState.grabOffsetX = dragClientX - rowRect.left;
+            dragState.grabOffsetY = dragClientY - rowRect.top;
+
+            // 浮起卡片：克隆整行，脱离节点缩放到 body 上跟随鼠标
+            const rowStyle = getComputedStyle(dragState.row);
+            const ghost = dragState.row.cloneNode(true);
+            Object.assign(ghost.style, {
+                position: "fixed",
+                boxSizing: "border-box",
+                width: `${rowRect.width}px`,
+                height: `${rowRect.height}px`,
+                margin: "0",
+                zIndex: "9999",
+                pointerEvents: "none",
+                opacity: "0.95",
+                fontFamily: rowStyle.fontFamily,
+                fontSize: rowStyle.fontSize,
+                color: rowStyle.color,
+                boxShadow: "0 10px 24px rgba(0,0,0,0.6)",
+                transform: "scale(1.02)",
+                transformOrigin: "center",
+                transition: "none",
+            });
+            document.body.appendChild(ghost);
+            dragState.ghost = ghost;
+            positionGhost();
+
+            dragLine = el("div", {
+                style: {
+                    position: "absolute",
+                    left: "0",
+                    right: "0",
+                    height: "3px",
+                    background: "#6a9bff",
+                    borderRadius: "2px",
+                    boxShadow: "0 0 8px rgba(106,155,255,0.8)",
+                    pointerEvents: "none",
+                },
+            });
+            selectedList.appendChild(dragLine);
+            document.body.style.cursor = "grabbing";
+            document.body.style.userSelect = "none";
+        }
+
+        positionGhost();
+        updateDragLine();
+        startAutoScroll();
+    }
+
+    /**
+     * 浮起卡片跟随指针
+     */
+    function positionGhost() {
+        if (!dragState?.ghost) return;
+        dragState.ghost.style.left = `${dragClientX - dragState.grabOffsetX}px`;
+        dragState.ghost.style.top = `${dragClientY - dragState.grabOffsetY}px`;
+    }
+
+    /**
+     * 猫爪图标（四个脚趾 + 掌垫）
+     */
+    function createGrabIcon(size = 16) {
+        const wrapper = el("span", {
+            style: {
+                display: "block",
+                width: `${size}px`,
+                height: `${size}px`,
+                pointerEvents: "none",
+            },
+        });
+        wrapper.innerHTML = `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor"><ellipse cx="4.9" cy="10.2" rx="2" ry="2.5"/><ellipse cx="9.4" cy="6.4" rx="2.1" ry="2.7"/><ellipse cx="14.6" cy="6.4" rx="2.1" ry="2.7"/><ellipse cx="19.1" cy="10.2" rx="2" ry="2.5"/><path d="M12 11.2c-3.4 0-6.1 2.4-6.1 5.2 0 2.1 1.6 3.8 3.7 3.8 1.1 0 1.7-.4 2.4-.4s1.3.4 2.4.4c2.1 0 3.7-1.7 3.7-3.8 0-2.8-2.7-5.2-6.1-5.2z"/></svg>`;
+        return wrapper;
+    }
+
+    /**
+     * 按指针所在行的上/下半区计算插入索引，并移动指示线
+     */
+    function updateDragLine() {
+        if (!dragState?.active || !dragLine) return;
+        const rows = Array.from(selectedList.children).filter(c => c !== dragLine);
+
+        let insertIndex = rows.length;
+        for (let i = 0; i < rows.length; i++) {
+            const rect = rows[i].getBoundingClientRect();
+            if (dragClientY < rect.top + rect.height / 2) {
+                insertIndex = i;
+                break;
+            }
+        }
+        // 指针在列表上方时强制插到最前
+        if (dragClientY < selectedContainer.getBoundingClientRect().top) {
+            insertIndex = 0;
+        }
+        dragState.insertIndex = insertIndex;
+
+        let lineTop = 0;
+        if (insertIndex < rows.length) {
+            lineTop = rows[insertIndex].offsetTop - 3;
+        } else if (rows.length > 0) {
+            const last = rows[rows.length - 1];
+            lineTop = last.offsetTop + last.offsetHeight + 1;
+        }
+        dragLine.style.top = `${lineTop}px`;
+    }
+
+    /**
+     * 指针接近列表上/下边缘时自动滚动
+     */
+    function startAutoScroll() {
+        if (dragScrollRAF !== null) return;
+        const step = () => {
+            if (!dragState?.active) {
+                dragScrollRAF = null;
+                return;
+            }
+            const rect = selectedContainer.getBoundingClientRect();
+            const edge = 20;
+            let delta = 0;
+            if (dragClientY < rect.top + edge) delta = -8;
+            else if (dragClientY > rect.bottom - edge) delta = 8;
+
+            if (delta !== 0) {
+                const before = selectedContainer.scrollTop;
+                selectedContainer.scrollTop += delta;
+                if (selectedContainer.scrollTop !== before) updateDragLine();
+            }
+            dragScrollRAF = requestAnimationFrame(step);
+        };
+        dragScrollRAF = requestAnimationFrame(step);
+    }
+
+    function stopAutoScroll() {
+        if (dragScrollRAF !== null) {
+            cancelAnimationFrame(dragScrollRAF);
+            dragScrollRAF = null;
+        }
+    }
+
+    function onDragEnd() {
+        if (!dragState) return;
+        const { name, active, insertIndex } = dragState;
+        cleanupDrag();
+        if (active && insertIndex !== null) {
+            reorderLoraTo(name, insertIndex);
+        }
+    }
+
+    function onDragKeyDown(e) {
+        if (e.key === "Escape" && dragState) {
+            e.preventDefault();
+            e.stopPropagation();
+            cleanupDrag();
+        }
+    }
+
+    function cleanupDrag() {
+        document.removeEventListener("pointermove", onDragMove, true);
+        document.removeEventListener("pointerup", onDragEnd, true);
+        document.removeEventListener("pointercancel", onDragEnd, true);
+        document.removeEventListener("keydown", onDragKeyDown, true);
+        stopAutoScroll();
+
+        if (dragLine) {
+            dragLine.remove();
+            dragLine = null;
+        }
+        if (dragState?.ghost) {
+            dragState.ghost.remove();
+            dragState.ghost = null;
+        }
+        if (dragState?.row) {
+            // 恢复原有透明度（禁用行本来就是 0.45）
+            const item = state.selectedLoras.get(dragState.name);
+            dragState.row.style.opacity = item && item.enabled === false ? "0.45" : "1";
+        }
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        dragState = null;
+    }
+
+    /**
+     * 把 LoRA 移动到插入索引位置（索引基于拖拽前的行顺序）
      * 只改变加载顺序，不触碰提示词文本
      */
-    function moveLora(loraName, delta) {
+    function reorderLoraTo(loraName, insertIndex) {
         const entries = Array.from(state.selectedLoras.entries());
         const from = entries.findIndex(([n]) => n === loraName);
-        const to = from + delta;
-        if (from < 0 || to < 0 || to >= entries.length) return;
-        [entries[from], entries[to]] = [entries[to], entries[from]];
+        if (from < 0) return;
+
+        const [moved] = entries.splice(from, 1);
+        const target = insertIndex > from ? insertIndex - 1 : insertIndex;
+        if (target === from) return;
+
+        entries.splice(target, 0, moved);
         state.selectedLoras = new Map(entries);
         renderSelectedList();
         syncToWidget();
@@ -896,7 +1123,7 @@ async function initNodeUI(node) {
         }
 
         const entries = Array.from(state.selectedLoras.entries());
-        entries.forEach(([name, item], index) => {
+        entries.forEach(([name, item]) => {
             const shortName = getShortName(name);
             const thumbnailUrl = getThumbnailUrl(name);
             const isEnabled = item.enabled !== false;
@@ -914,45 +1141,26 @@ async function initNodeUI(node) {
                 },
             });
 
-            // 顺序按钮组（▲ 上移 / ▼ 下移），位于开关之前
-            const orderGroup = el("div", {
+            // 拖拽手柄（按住拖动调整顺序），位于开关之前
+            const dragHandle = el("div", {
                 style: {
+                    width: "16px",
+                    height: "32px",
                     display: "flex",
-                    flexDirection: "column",
-                    gap: "1px",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#888",
+                    cursor: "grab",
                     flexShrink: "0",
+                    userSelect: "none",
                 },
-            });
-            const makeOrderBtn = (label, disabled, tip, delta) => {
-                const btn = el("button", {
-                    style: {
-                        width: "16px",
-                        height: "10px",
-                        padding: "0",
-                        border: "none",
-                        borderRadius: "2px",
-                        background: disabled ? "#2a2a2a" : "#3a3a3a",
-                        color: disabled ? "#555" : "#ccc",
-                        fontSize: "8px",
-                        lineHeight: "10px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: disabled ? "not-allowed" : "pointer",
-                    },
-                    disabled,
-                    title: tip,
-                    onClick: (e) => {
-                        e.stopPropagation();
-                        moveLora(name, delta);
-                    },
-                }, [label]);
-                btn.dataset.noForward = "true";
-                return btn;
-            };
-            orderGroup.appendChild(makeOrderBtn("▲", index === 0, "上移", -1));
-            orderGroup.appendChild(makeOrderBtn("▼", index === entries.length - 1, "下移", 1));
-            row.appendChild(orderGroup);
+                title: "按住拖动调整顺序",
+                onPointerdown: (e) => startDrag(e, name, row),
+            }, [createGrabIcon(16)]);
+            dragHandle.dataset.noForward = "true";
+            dragHandle.onmouseenter = () => { dragHandle.style.color = "#ccc"; };
+            dragHandle.onmouseleave = () => { dragHandle.style.color = "#888"; };
+            row.appendChild(dragHandle);
 
             // 启用/禁用 Toggle 滑动开关
             const toggleTrack = el("div", {
@@ -1447,6 +1655,15 @@ async function initNodeUI(node) {
     // 转发 wheel 事件到 canvas，让 ComfyUI 处理画布缩放
     // 仅当目标元素实际可滚动时才保留元素自身的滚动功能
     container.addEventListener("wheel", (e) => {
+        // 拖拽排序期间，滚轮用于滚动已选列表，不转发给画布做缩放
+        if (dragState?.active) {
+            selectedContainer.scrollTop += e.deltaY;
+            updateDragLine();
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+
         const target = e.target;
         let isScrollable = false;
 
