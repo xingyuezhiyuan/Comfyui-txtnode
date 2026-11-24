@@ -867,6 +867,21 @@ async function initNodeUI(node) {
     }
 
     /**
+     * 调整已选 LoRA 顺序（delta = -1 上移，1 下移）
+     * 只改变加载顺序，不触碰提示词文本
+     */
+    function moveLora(loraName, delta) {
+        const entries = Array.from(state.selectedLoras.entries());
+        const from = entries.findIndex(([n]) => n === loraName);
+        const to = from + delta;
+        if (from < 0 || to < 0 || to >= entries.length) return;
+        [entries[from], entries[to]] = [entries[to], entries[from]];
+        state.selectedLoras = new Map(entries);
+        renderSelectedList();
+        syncToWidget();
+    }
+
+    /**
      * 渲染已选 LoRA 列表
      */
     function renderSelectedList() {
@@ -880,7 +895,8 @@ async function initNodeUI(node) {
             return;
         }
 
-        for (const [name, item] of state.selectedLoras) {
+        const entries = Array.from(state.selectedLoras.entries());
+        entries.forEach(([name, item], index) => {
             const shortName = getShortName(name);
             const thumbnailUrl = getThumbnailUrl(name);
             const isEnabled = item.enabled !== false;
@@ -897,6 +913,46 @@ async function initNodeUI(node) {
                     transition: "opacity 0.2s",
                 },
             });
+
+            // 顺序按钮组（▲ 上移 / ▼ 下移），位于开关之前
+            const orderGroup = el("div", {
+                style: {
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "1px",
+                    flexShrink: "0",
+                },
+            });
+            const makeOrderBtn = (label, disabled, tip, delta) => {
+                const btn = el("button", {
+                    style: {
+                        width: "16px",
+                        height: "10px",
+                        padding: "0",
+                        border: "none",
+                        borderRadius: "2px",
+                        background: disabled ? "#2a2a2a" : "#3a3a3a",
+                        color: disabled ? "#555" : "#ccc",
+                        fontSize: "8px",
+                        lineHeight: "10px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: disabled ? "not-allowed" : "pointer",
+                    },
+                    disabled,
+                    title: tip,
+                    onClick: (e) => {
+                        e.stopPropagation();
+                        moveLora(name, delta);
+                    },
+                }, [label]);
+                btn.dataset.noForward = "true";
+                return btn;
+            };
+            orderGroup.appendChild(makeOrderBtn("▲", index === 0, "上移", -1));
+            orderGroup.appendChild(makeOrderBtn("▼", index === entries.length - 1, "下移", 1));
+            row.appendChild(orderGroup);
 
             // 启用/禁用 Toggle 滑动开关
             const toggleTrack = el("div", {
@@ -1284,7 +1340,7 @@ async function initNodeUI(node) {
             row.appendChild(removeBtn);
 
             selectedList.appendChild(row);
-        }
+        });
     }
 
     /**
